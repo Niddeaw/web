@@ -4,13 +4,14 @@
 // ----------------------------------------------------
 // ใช้คู่กับ: dashboard_sidebar_actions.js (Action Library)
 // โหลดหลัง: config.js, dashboard_ui.js, dashboard_sidebar_actions.js
+// Version: 3.1 — Module Admin Support + onSidebarRendered Hook
 // ==========================================
 
 // ==========================================
 // Global State
 // ==========================================
-let _sidebarConfigCache = {};
 let _currentSidebarConfig = null;
+let _lastRenderedConfig = null;   // ✅ NEW
 let _currentModuleKey = null;
 let _currentActiveId = null;
 
@@ -61,7 +62,6 @@ window.toggleSidebarCollapse = function () {
         }
     }
 
-    // Save preference
     try {
         localStorage.setItem('wrk_sidebar_collapsed',
             body.classList.contains('sidebar-collapsed') ? '1' : '0');
@@ -85,7 +85,6 @@ function _readSidebarCache(moduleKey) {
         const raw = sessionStorage.getItem(`wrk_sidebar_cfg_${moduleKey}`);
         if (!raw) return null;
         const parsed = JSON.parse(raw);
-        // ✅ TTL 30 วินาที (ลดจาก 5 นาที)
         if (parsed.ts && Date.now() - parsed.ts < 30 * 1000) {
             return parsed.data;
         }
@@ -118,7 +117,6 @@ async function ensureSidebarConfig(moduleKey, fallbackConfig) {
     if (!moduleKey || !fallbackConfig) return false;
 
     try {
-        // เช็คว่ามี config นี้ใน DB แล้วหรือยัง
         const { data: existing, error } = await db
             .from('core_sidebar_config')
             .select('config_key')
@@ -127,16 +125,13 @@ async function ensureSidebarConfig(moduleKey, fallbackConfig) {
 
         if (error && error.code !== 'PGRST116') throw error;
 
-        // ✅ มีอยู่แล้ว → ไม่ต้อง seed
         if (existing) {
             console.log(`📌 Sidebar config "${moduleKey}" มีอยู่แล้ว`);
             return false;
         }
 
-        // ✅ ยังไม่มี → seed จาก fallback
         console.log(`🌱 Auto-seeding sidebar: "${moduleKey}"`);
 
-        // ทำความสะอาด config ก่อน save
         const cleanConfig = JSON.parse(JSON.stringify(fallbackConfig));
         delete cleanConfig.autoActivate;
 
@@ -161,19 +156,16 @@ async function ensureSidebarConfig(moduleKey, fallbackConfig) {
 // ✅ Load Module Sidebar Config (DB → fallback)
 // ==========================================
 async function loadModuleSidebarConfig(moduleKey, fallbackConfig) {
-    // ไม่มี moduleKey → ใช้ fallback
     if (!moduleKey) {
         return { config: fallbackConfig, from: 'fallback-no-key' };
     }
 
-    // ✅ ลอง cache ก่อน
     const cached = _readSidebarCache(moduleKey);
     if (cached) {
         return { config: cached, from: 'cache' };
     }
 
     try {
-        // ✅ ลองโหลดจาก DB
         const { data, error } = await db
             .from('core_sidebar_config')
             .select('config_data')
@@ -182,13 +174,11 @@ async function loadModuleSidebarConfig(moduleKey, fallbackConfig) {
 
         if (error && error.code !== 'PGRST116') throw error;
 
-        // ✅ มีใน DB → ใช้ DB
         if (data?.config_data) {
             _writeSidebarCache(moduleKey, data.config_data);
             return { config: data.config_data, from: 'db' };
         }
 
-        // ✅ ไม่มี → ใช้ fallback + auto-seed
         if (fallbackConfig) {
             await ensureSidebarConfig(moduleKey, fallbackConfig);
             _writeSidebarCache(moduleKey, fallbackConfig);
@@ -210,7 +200,6 @@ function _buildIconStyle(item, styleMode) {
     const bg = item.icon_bg_color || '';
     const txt = item.icon_text_color || '';
 
-    // Outline mode → พื้นหลังโปร่งใส + สีจาก bg
     if (styleMode === 'outline') {
         let color = bg;
         if (!color || color === 'transparent' || _isLightColor(bg)) {
@@ -219,7 +208,6 @@ function _buildIconStyle(item, styleMode) {
         return `background-color: transparent; color: ${color};`;
     }
 
-    // Filled mode (default)
     return `background-color: ${bg || 'transparent'}; color: ${txt || 'inherit'};`;
 }
 
@@ -248,7 +236,7 @@ function _buildIconTag(iconValue, color = '') {
 }
 
 // ==========================================
-// ✅ Role Filter Helper
+// ✅ Role Filter Helper (v3 — รองรับ Module Admin)
 // ==========================================
 function _isItemVisibleByRole(item) {
     const currentRole = window.currentUserRole || '';
@@ -269,22 +257,27 @@ function _isItemVisibleByRole(item) {
     // ✅ ตรวจ roles
     if (hasRoles && item.roles.includes(currentRole)) return true;
 
-    // ✅ ตรวจ moduleAdmin
+    // ✅ ตรวจ moduleAdmin (จาก _userModuleAdmins ที่โมดูลตั้งไว้)
     if (hasModuleAdmin) {
         const adminModules = window._userModuleAdmins || [];
-        if (adminModules.includes(moduleAdmin)) return true;
+        if (Array.isArray(adminModules) && adminModules.includes(moduleAdmin)) return true;
     }
 
     return false;
 }
 
-// ✅ Helper: หา moduleAdmin จาก WRK_SIDEBAR_ACTIONS ตาม id
+// ==========================================
+// ✅ Helper: ค้นหา moduleAdmin จาก WRK_SIDEBAR_ACTIONS ตาม item.id
+//    ใช้แก้ปัญหา config ใน DB เก่า (ยังไม่มี field moduleAdmin)
+// ==========================================
 function _lookupModuleAdminById(itemId) {
     if (!itemId || !window.WRK_SIDEBAR_ACTIONS) return null;
     const lib = window.WRK_SIDEBAR_ACTIONS;
+
     for (const moduleKey of Object.keys(lib)) {
         const moduleLib = lib[moduleKey];
         if (!moduleLib || typeof moduleLib !== 'object') continue;
+
         for (const actionKey of Object.keys(moduleLib)) {
             const action = moduleLib[actionKey];
             if (action && action.id === itemId && action.moduleAdmin) {
@@ -312,7 +305,6 @@ window.renderSidebar = function (config) {
     const styleMode = config.iconStyle || 'filled';
     const brand = config.brand || {};
 
-    // ✅ Sync global icon style
     window._setGlobalIconStyle = function (mode) {
         window._wrkIconStyle = mode;
     };
@@ -372,7 +364,7 @@ window.renderSidebar = function (config) {
             const defaultOpen = mod.defaultOpen !== false;
             const items = _renderSidebarItems(mod.items || [], styleMode);
 
-            if (!items) return; // ถ้าไม่มี items ที่ show ได้ → ข้าม
+            if (!items) return;
 
             if (collapsible) {
                 html += `
@@ -441,6 +433,12 @@ window.renderSidebar = function (config) {
 
     sidebar.innerHTML = html;
 
+    // ✅ NEW: Hook — แจ้งโมดูล re-apply overrides หลัง sidebar render ใหม่
+    //    (เช่น toggle sidebar item visibility สำหรับ module admin)
+    if (typeof window.onSidebarRendered === 'function') {
+        try { window.onSidebarRendered(); } catch (e) { /* ignore */ }
+    }
+
     // ✅ Apply active state
     if (_currentActiveId) {
         setActiveNavItem(_currentActiveId);
@@ -483,17 +481,14 @@ function _renderSingleItem(item, styleMode, depth) {
     const iconStyle = _buildIconStyle(item, styleMode);
     const hasChildren = item.children && item.children.length > 0;
 
-    // Class override
     const itemClass = item.class || '';
     const activeClass = itemClass.includes('active') || item.id === _currentActiveId ? 'active' : '';
     const logoutClass = itemClass.includes('logout') ? 'logout' : '';
 
-    // Link/Onclick
     const href = item.href ? `href="${_escapeAttr(item.href)}"` : '';
     const target = item.target_blank ? 'target="_blank" rel="noopener"' : '';
     const onclick = item.onclick ? `onclick="${_escapeAttr(item.onclick)}"` : '';
 
-    // Children (expandable)
     if (hasChildren) {
         const visibleChildren = item.children.filter(c => !c.hidden && _isItemVisibleByRole(c));
         if (visibleChildren.length === 0) return '';
@@ -513,7 +508,6 @@ function _renderSingleItem(item, styleMode, depth) {
         `;
     }
 
-    // Regular item
     return `
         <a id="${_escapeAttr(item.id || '')}"
            ${href} ${target} ${onclick}
@@ -538,7 +532,7 @@ window.setActiveNavItem = function (id) {
 };
 
 // ==========================================
-// ✅ Render Topbar (เวอร์ชันแก้ไข — รองรับ search + icon buttons)
+// ✅ Render Topbar (เวอร์ชันรองรับ Search + Icon Buttons)
 // ==========================================
 window.renderTopbar = function (options = {}) {
     const topbar = document.getElementById('dTopbar');
@@ -548,9 +542,9 @@ window.renderTopbar = function (options = {}) {
         pageTitle = '',
         buttons = [],
         breadcrumb = [],
-        search = null,              // ✅ ใหม่ — inline search input
-        showGlobalSearch = true,    // ✅ ใหม่ — ปุ่มค้นหา (GlobalSearch)
-        showNotification = true     // ✅ ใหม่ — ปุ่มแจ้งเตือน (NotificationCenter)
+        search = null,
+        showGlobalSearch = true,
+        showNotification = true
     } = options;
 
     const currentRole = window.currentUserRole || '';
@@ -572,7 +566,7 @@ window.renderTopbar = function (options = {}) {
         }).join('');
     }
 
-    // ✅ Inline Search (ถ้าส่งมา)
+    // Inline Search
     let searchHtml = '';
     if (search && search.id) {
         searchHtml = `
@@ -589,7 +583,7 @@ window.renderTopbar = function (options = {}) {
         `;
     }
 
-    // ✅ Icon Buttons (ค้นหา + แจ้งเตือน)
+    // Icon Buttons
     let iconButtonsHtml = '';
 
     if (showGlobalSearch) {
@@ -613,7 +607,7 @@ window.renderTopbar = function (options = {}) {
         `;
     }
 
-    // Buttons HTML (ของเดิม)
+    // Buttons HTML
     let buttonsHtml = '';
     if (buttons.length > 0) {
         buttonsHtml = buttons.map(btn => {
@@ -653,7 +647,6 @@ window.renderTopbar = function (options = {}) {
 
         ${buttonsHtml}
 
-        <!-- Settings Button -->
         <div class="d-settings-wrap">
             <button class="d-settings-btn ${canManageSettings ? '' : 'hidden'}" 
                     id="admin-settings-btn"
@@ -677,13 +670,11 @@ window.renderTopbar = function (options = {}) {
             </div>
         </div>
 
-        <!-- Date Chip -->
         <div class="d-chip">
             <i class="fa-regular fa-calendar mr-1"></i>
             <span id="todayChip">-</span>
         </div>
 
-        <!-- User Profile -->
         <div class="d-profile">
             <div class="d-avatar-wrap">
                 <div class="d-avatar" id="userAvatar">
@@ -720,16 +711,15 @@ window.renderTopbar = function (options = {}) {
 
     setTodayChip();
 
-    // ✅ อัปเดต badge หลัง render เสร็จ
+    // อัปเดต badge
     setTimeout(() => {
         if (window.NotificationCenter && typeof NotificationCenter._updateBadge === 'function') {
             try { NotificationCenter._updateBadge(); } catch (e) {}
         }
     }, 300);
 
-    // Hook: เรียก callback หลัง render เสร็จ
     if (typeof window.onTopbarRendered === 'function') {
-        try { window.onTopbarRendered(); } catch (e) { /* ignore */ }
+        try { window.onTopbarRendered(); } catch (e) { }
     }
 };
 
@@ -786,6 +776,7 @@ window.updateUserRoleLabel = function (role) {
 
 // ==========================================
 // ✅ Render User Avatar
+//    ✅ ใช้ fallback order เดียวกับ dashboard_ui.js
 // ==========================================
 window.renderUserAvatar = function (user) {
     if (!user) return;
@@ -798,12 +789,20 @@ window.renderUserAvatar = function (user) {
     const fullName = `${user.prefix || ''}${user.first_name || ''} ${user.last_name || ''}`.trim();
     const initial = (user.first_name || '?').charAt(0).toUpperCase();
 
-    const avatarUrl = user.avatar_students_url || user.avatar_staff_url || user.avatar_url || user.profile_image_url;
+    // ✅ Fallback order ตรงกับ dashboard_ui.js
+    const avatarUrl = user.avatar_students_url
+        || user.avatar_staff_url
+        || user.avatar_url
+        || user.profile_image
+        || user.photo_url
+        || user.image_url
+        || user.picture
+        || user.avatar
+        || '';
 
     if (avatarUrl) {
         let finalUrl = avatarUrl;
 
-        // Normalize Google Drive URL
         if (typeof window.normalizeGoogleDriveUrl === 'function') {
             finalUrl = window.normalizeGoogleDriveUrl(avatarUrl, 200) || avatarUrl;
         }
@@ -845,7 +844,6 @@ window.setFontSize = function (size) {
     });
 };
 
-// Restore font size
 (function restoreFontSize() {
     try {
         const size = localStorage.getItem('wrk_font_size') || 'normal';
@@ -866,7 +864,6 @@ window.setDensity = function (density) {
     });
 };
 
-// Restore density
 (function restoreDensity() {
     try {
         const density = localStorage.getItem('wrk_density') || 'normal';
@@ -882,7 +879,6 @@ window.toggleSettingsMenu = function () {
     if (menu) menu.classList.toggle('show');
 };
 
-// Close on outside click
 document.addEventListener('click', function (e) {
     const wrap = e.target.closest('.d-settings-wrap');
     if (!wrap) {
@@ -919,7 +915,6 @@ window.initModuleSidebar = async function (options) {
         fallbackConfig = null,
         onReady = null,
         skipAutoRender = false,
-        waitRole = false,
         breadcrumb = null
     } = options;
 
@@ -928,17 +923,14 @@ window.initModuleSidebar = async function (options) {
 
     console.log(`🎯 initModuleSidebar: moduleKey="${moduleKey}", skipAutoRender=${skipAutoRender}`);
 
-    // ✅ Load config (DB หรือ fallback)
     const { config: finalConfig, from } = await loadModuleSidebarConfig(moduleKey, fallbackConfig);
 
     console.log(`📚 Sidebar config [${from}]`);
 
-    // ✅ Auto-render (ถ้าไม่ skip)
     if (!skipAutoRender && finalConfig) {
         renderSidebar(finalConfig);
     }
 
-    // ✅ Render Topbar เสมอ
     renderTopbar({
         pageTitle,
         buttons: topbarButtons,
@@ -948,12 +940,10 @@ window.initModuleSidebar = async function (options) {
         ] : [])
     });
 
-    // ✅ Set active nav
     if (activeId) {
         setTimeout(() => setActiveNavItem(activeId), 100);
     }
 
-    // ✅ onReady callback
     if (typeof onReady === 'function') {
         try {
             await onReady(finalConfig);
@@ -967,12 +957,10 @@ window.initModuleSidebar = async function (options) {
 
 // ==========================================
 // ✅ Alias function — backward compatible
-// สำหรับ index.html ที่เรียก loadSidebarConfigFromDB
 // ==========================================
 window.loadSidebarConfigFromDB = async function (configKey) {
     if (!configKey) return null;
     try {
-        // ✅ ใช้ cache ก่อน (เร็วกว่า)
         const cacheKey = `wrk_sidebar_cfg_${configKey}`;
         try {
             const raw = sessionStorage.getItem(cacheKey);
@@ -984,7 +972,6 @@ window.loadSidebarConfigFromDB = async function (configKey) {
             }
         } catch (e) { }
 
-        // ✅ โหลดจาก DB
         const { data, error } = await db
             .from('core_sidebar_config')
             .select('config_data')
@@ -995,14 +982,12 @@ window.loadSidebarConfigFromDB = async function (configKey) {
         if (error && error.code !== 'PGRST116') throw error;
         if (!data?.config_data) return null;
 
-        // ✅ Validate + cache
         const cfg = data.config_data;
         const hasContent = (cfg.mainMenu?.length > 0) ||
                           (cfg.moduleMenus?.length > 0) ||
                           (cfg.departments?.length > 0);
         if (!hasContent) return null;
 
-        // Cache
         try {
             sessionStorage.setItem(cacheKey, JSON.stringify({
                 ts: Date.now(),
@@ -1047,11 +1032,9 @@ function _escapeAttr(str) {
             const { action, moduleKey } = event.data || {};
             if (action === 'clear_cache') {
                 if (moduleKey) {
-                    // ล้างเฉพาะ module
                     sessionStorage.removeItem(`wrk_sidebar_cfg_${moduleKey}`);
                     console.log(`🔄 Sync: ล้าง cache ของ "${moduleKey}"`);
                 } else {
-                    // ล้างทั้งหมด
                     Object.keys(sessionStorage).forEach(k => {
                         if (k.startsWith('wrk_sidebar_cfg_')) {
                             sessionStorage.removeItem(k);
@@ -1060,7 +1043,6 @@ function _escapeAttr(str) {
                     console.log('🔄 Sync: ล้าง cache ทั้งหมด');
                 }
                 
-                // ✅ Reload หน้า (ถ้าไม่ได้อยู่ในหน้า admin)
                 if (!window.location.pathname.includes('sidebar_admin')) {
                     setTimeout(() => window.location.reload(), 300);
                 }
@@ -1090,7 +1072,6 @@ window.broadcastSidebarUpdate = function (moduleKey = null) {
         console.warn('⚠️ Broadcast error:', e);
     }
     
-    // ล้าง cache ในแท็บปัจจุบันด้วย
     if (moduleKey) {
         sessionStorage.removeItem(`wrk_sidebar_cfg_${moduleKey}`);
     } else {
@@ -1105,42 +1086,48 @@ window.broadcastSidebarUpdate = function (moduleKey = null) {
 // ==========================================
 // ✅ AUTO-SYNC: Re-render sidebar เมื่อ config + role พร้อม
 // ----------------------------------------------------
-// แก้ปัญหา: renderSidebar() อาจถูกเรียกก่อน role set
-//          → items ที่มี roles filter ถูกทิ้ง
-// ----------------------------------------------------
-// Logic: retry ทุก 200ms จนกว่าจะมี **ทั้ง config + role**
+// 🚀 v3.2: เพิ่ม guard ป้องกัน render ซ้ำเมื่อ role เดียวกัน
 // ==========================================
 (function autoRerenderOnRoleSet() {
     let _lastAppliedRole = null;
     let _attempts = 0;
-    const MAX_ATTEMPTS = 50;   // 10 วินาที
+    let _hasRenderedOnce = false;   // ✅ NEW
+    const MAX_ATTEMPTS = 50;
 
     const _watch = setInterval(() => {
         _attempts++;
         const currentRole = window.currentUserRole;
 
-        // ✅ ต้องมีทั้ง config + role + ยังไม่ apply role นี้
         if (_currentSidebarConfig && currentRole && _lastAppliedRole !== currentRole) {
             _lastAppliedRole = currentRole;
+
+            // 🚀 Skip การ render ครั้งแรกถ้าเพิ่ง render ไปแล้วจาก buildSidebarAndTopbar
+            if (_hasRenderedOnce && _currentSidebarConfig === _lastRenderedConfig) {
+                console.log(`🔄 Auto-rerender SKIP (already rendered with role: ${currentRole})`);
+                clearInterval(_watch);
+                return;
+            }
+
             console.log(`🔄 Auto-rerender sidebar (role: ${currentRole})`);
 
             try {
+                _lastRenderedConfig = _currentSidebarConfig;
                 renderSidebar(_currentSidebarConfig);
+                _hasRenderedOnce = true;
                 if (_currentActiveId) {
                     setTimeout(() => setActiveNavItem(_currentActiveId), 50);
                 }
                 console.log('✅ Sidebar re-rendered successfully');
+                clearInterval(_watch);   // ✅ render แล้ว → หยุด watcher
             } catch (err) {
                 console.warn('⚠️ Re-render failed:', err);
             }
         }
 
-        // ✅ Timeout — เฉพาะกรณีที่ apply role ไปแล้ว
         if (_lastAppliedRole && _attempts >= MAX_ATTEMPTS) {
             clearInterval(_watch);
         }
 
-        // ✅ Timeout — กรณีไม่เจอ role/config เลย
         if (!_lastAppliedRole && _attempts >= MAX_ATTEMPTS) {
             clearInterval(_watch);
             console.warn('⚠️ Auto-rerender timeout: role หรือ config ไม่พร้อมใน 10 วินาที');
@@ -1151,6 +1138,8 @@ window.broadcastSidebarUpdate = function (moduleKey = null) {
     window.rerenderSidebar = function () {
         if (_currentSidebarConfig) {
             console.log('🔄 Manual rerender (role:', window.currentUserRole, ')');
+            _lastRenderedConfig = _currentSidebarConfig;
+            _hasRenderedOnce = true;
             renderSidebar(_currentSidebarConfig);
             if (_currentActiveId) {
                 setTimeout(() => setActiveNavItem(_currentActiveId), 50);
@@ -1160,14 +1149,14 @@ window.broadcastSidebarUpdate = function (moduleKey = null) {
         }
     };
 
-    // ✅ DEBUG: Expose getter ให้ console เข้าถึงได้
     window.getSidebarState = function () {
         return {
             hasConfig: !!_currentSidebarConfig,
             configKey: _currentSidebarConfig?.brand?.name || 'n/a',
             currentRole: window.currentUserRole,
             lastAppliedRole: _lastAppliedRole,
-            attempts: _attempts
+            attempts: _attempts,
+            hasRenderedOnce: _hasRenderedOnce
         };
     };
 })();
@@ -1178,4 +1167,4 @@ window.broadcastSidebarUpdate = function (moduleKey = null) {
 window.ensureSidebarConfig = ensureSidebarConfig;
 window.loadModuleSidebarConfig = loadModuleSidebarConfig;
 
-console.log('✅ dashboard_sidebar.js loaded (+ Auto-Seed + Role Filter + Icon Colors + Dynamic Departments)');
+console.log('✅ dashboard_sidebar.js loaded (v3.1 + Module Admin Support + onSidebarRendered Hook)');

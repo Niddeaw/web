@@ -1,5 +1,6 @@
 // ==========================================
 // config.js — ไฟล์ตั้งค่าส่วนกลางของระบบ WRK
+// 🚀 v2.1 OPTIMIZED — ใช้ getSession() แทน getUser()
 // ==========================================
 
 const SUPABASE_URL = 'https://scyyqsxbxokripljamzl.supabase.co';
@@ -106,25 +107,76 @@ function updateToggleModeUI(role, isAdminMode, btnId = 'btnToggleMode') {
 }
 
 // ==========================================
-// checkSessionAndRole — ตรวจสอบ session และ role
+// 🚀 Auth Cache (5 นาที) — เพื่อลดการ query ซ้ำ
+// ==========================================
+const _AUTH_PERSONNEL_CACHE_KEY = 'wrk_auth_personnel_cache';
+const _AUTH_PERSONNEL_TTL = 5 * 60 * 1000;
+
+function _readPersonnelCache(userId) {
+    try {
+        const raw = sessionStorage.getItem(_AUTH_PERSONNEL_CACHE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (parsed.userId !== userId) return null;
+        if (!parsed.ts || Date.now() - parsed.ts > _AUTH_PERSONNEL_TTL) return null;
+        return parsed.data;
+    } catch (e) { return null; }
+}
+
+function _writePersonnelCache(userId, data) {
+    try {
+        sessionStorage.setItem(_AUTH_PERSONNEL_CACHE_KEY, JSON.stringify({
+            userId, ts: Date.now(), data
+        }));
+    } catch (e) { }
+}
+
+function clearAuthPersonnelCache() {
+    try { sessionStorage.removeItem(_AUTH_PERSONNEL_CACHE_KEY); } catch (e) { }
+}
+
+// ==========================================
+// 🚀 checkSessionAndRole — ตรวจสอบ session และ role
+//    ✅ v2.1: ใช้ getSession() แทน getUser() (เร็วกว่า 20-100 เท่า)
+//    ✅ v2.1: ลด select('*') → เลือกเฉพาะคอลัมน์ที่ใช้
+//    ✅ v2.1: Cache personnel 5 นาที
 // ==========================================
 async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
-    const { data: { user } } = await db.auth.getUser();
+    const t0 = performance.now();
+
+    // ✅ 1) ใช้ getSession() อ่านจาก localStorage — ไม่ต้อง round-trip
+    let user;
+    try {
+        const { data: { session } } = await db.auth.getSession();
+        user = session?.user || null;
+    } catch (e) {
+        console.warn('getSession error:', e);
+        user = null;
+    }
+
     if (!user) {
         window.location.href = 'login.html';
         return null;
     }
 
-    const { data: personnel } = await db
-        .from('core_personnel')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+    // ✅ 2) ลอง cache personnel ก่อน
+    let personnel = _readPersonnelCache(user.id);
 
     if (!personnel) {
-        await Swal.fire('ไม่พบข้อมูล', 'กรุณาติดต่อผู้ดูแลระบบ', 'error');
-        window.location.href = 'login.html';
-        return null;
+        // ✅ เลือกเฉพาะคอลัมน์ที่ใช้ (ลด payload)
+        const { data, error } = await db
+            .from('core_personnel')
+            .select('id, prefix, first_name, last_name, role, email, avatar_url, position, department')
+            .eq('id', user.id)
+            .single();
+
+        if (error || !data) {
+            await Swal.fire('ไม่พบข้อมูล', 'กรุณาติดต่อผู้ดูแลระบบ', 'error');
+            window.location.href = 'login.html';
+            return null;
+        }
+        personnel = data;
+        _writePersonnelCache(user.id, personnel);
     }
 
     const role = personnel.role;
@@ -149,6 +201,8 @@ async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
 
     // ✅ เก็บ role ไว้ใช้ทั้งระบบ (Sidebar filter, UI)
     window.currentUserRole = role;
+
+    console.log(`⚡ [checkSessionAndRole] ${moduleName}: ${Math.round(performance.now() - t0)} ms`);
 
     return {
         user,
@@ -228,7 +282,7 @@ async function logUserAction(action, module) {
 // Exports
 // ==========================================
 window.WRK_ROLES             = WRK_ROLES;
-window.WRK_ROLE_CATALOG      = WRK_ROLE_CATALOG;   // ✅ ใหม่
+window.WRK_ROLE_CATALOG      = WRK_ROLE_CATALOG;
 window.isAllowedRole         = isAllowedRole;
 window.isAdminUser           = isAdminUser;
 window.isTeacherUser         = isTeacherUser;
@@ -242,6 +296,7 @@ window.updateToggleModeUI    = updateToggleModeUI;
 window.checkSessionAndRole   = checkSessionAndRole;
 window.logUserAction         = logUserAction;
 window.db                    = db;
+window.clearAuthPersonnelCache = clearAuthPersonnelCache;
 
 // ✅ Global logout alias
 window.logout = function () {
@@ -256,8 +311,11 @@ window.logout = function () {
     }).then(async (result) => {
         if (result.isConfirmed) {
             try { localStorage.removeItem('activeMode'); } catch (e) {}
+            clearAuthPersonnelCache();
             await db.auth.signOut();
             window.location.replace('login.html');
         }
     });
 };
+
+console.log('✅ config.js loaded (v2.1 OPTIMIZED — getSession + cache)');

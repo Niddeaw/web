@@ -4,6 +4,18 @@
 <head>
     <title>WRK - ระบบบริหารจัดการสถานศึกษา</title>
 
+    <!-- ============================================================
+         🚀 PERFORMANCE: Preconnect/DNS-Prefetch (ก่อนทุกอย่าง)
+         ============================================================ -->
+    <link rel="preconnect" href="https://scyyqsxbxokripljamzl.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://cdn.tailwindcss.com">
+    <link rel="preconnect" href="https://cdn.datatables.net">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    <link rel="dns-prefetch" href="https://i.ibb.co">
+
     <script src="core_head.js"></script>
     <script src="config.js"></script>
 
@@ -13,17 +25,14 @@
     <style>
         /* ============================================================
            CSS เฉพาะ index.html
-           (ที่เหลืออยู่ใน dashboard.css แล้ว)
            ============================================================ */
 
-        /* Hero แบบมีรูปพื้นหลัง */
         .d-hero {
             background:
                 linear-gradient(90deg, #d9ecff 0%, #eaf4ff 45%, rgba(255, 255, 255, 0) 70%),
                 url('hero-banner.webp') right center / auto 100% no-repeat;
         }
 
-        /* Label "นักเรียนทั้งหมด" ในหัวข้อ chart */
         #totalStudentsLabel {
             display: inline-block;
             margin-left: 6px;
@@ -36,8 +45,8 @@
         }
 
         /* ============================================================
-            Birthday Notification Badge
-            ============================================================ */
+           Birthday Notification Badge
+           ============================================================ */
         @keyframes wiggle-blink {
 
             0%,
@@ -92,7 +101,6 @@
             display: none !important;
         }
 
-        /* มือถือ: เหลือแค่ emoji 🎂 */
         @media (max-width: 760px) {
             #birthday-notification {
                 font-size: 0 !important;
@@ -115,20 +123,13 @@
 
     <div id="portalView" class="hidden">
         <div class="d-app">
-
-            <!-- ================= Sidebar (placeholder) ================= -->
             <aside class="d-sidebar" id="dSidebar"></aside>
             <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
-            <!-- ================= Main ================= -->
             <main class="d-main" id="dMain">
-
-                <!-- ================= Topbar (placeholder) ================= -->
                 <header class="d-topbar" id="dTopbar"></header>
 
-                <!-- ================= Dashboard Section ================= -->
                 <div id="dashboardSection">
-                    <!-- Hero -->
                     <section class="d-hero">
                         <div class="d-hero-content">
                             <h1>ยินดีต้อนรับสู่ระบบส่วนกลาง 👋</h1>
@@ -136,7 +137,6 @@
                         </div>
                     </section>
 
-                    <!-- Stat cards -->
                     <section class="d-grid4">
                         <div class="d-stat">
                             <div class="d-stat-icon d-blue"><i class="fa-solid fa-layer-group"></i></div>
@@ -168,7 +168,6 @@
                         </div>
                     </section>
 
-                    <!-- Charts -->
                     <section class="d-charts">
                         <div class="d-card">
                             <div class="d-card-title">
@@ -176,21 +175,16 @@
                                 <span id="chartStudentsSubtitle" class="d-sub"></span>
                                 <span id="totalStudentsLabel" class="d-sub"></span>
                             </div>
-                            <div class="d-chart-box">
-                                <canvas id="chartStudentsByLevel"></canvas>
-                            </div>
+                            <div class="d-chart-box"><canvas id="chartStudentsByLevel"></canvas></div>
                         </div>
                         <div class="d-card">
                             <div class="d-card-head">
                                 <div class="d-card-title">📊 จำนวนบุคลากรจำแนกตามประเภท</div>
                             </div>
-                            <div class="d-chart-box">
-                                <canvas id="chartPersonnelByGroup"></canvas>
-                            </div>
+                            <div class="d-chart-box"><canvas id="chartPersonnelByGroup"></canvas></div>
                         </div>
                     </section>
 
-                    <!-- ปฏิทิน + การลา -->
                     <section class="d-layout">
                         <div class="d-card wide">
                             <div class="d-card-head">
@@ -265,7 +259,6 @@
                     </section>
                 </div>
 
-                <!-- ================= App Modules Section ================= -->
                 <section class="d-card hidden" id="appModuleSection" style="margin-bottom:12px">
                     <div class="d-card-head">
                         <div class="d-card-title">
@@ -280,7 +273,6 @@
                         </div>
                     </div>
                 </section>
-
             </main>
         </div>
     </div>
@@ -309,21 +301,23 @@
         </div>
     </div>
 
-    <!-- ================= Libraries ================= -->
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- ============================================================
+         ❌ ตัดออก: chart.js CDN (มีใน core_head.js แล้ว — ไม่ต้องโหลดซ้ำ)
+         ============================================================ -->
+
+    <!-- ================= Libraries (non-duplicate) ================= -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js" defer></script>
 
     <!-- ================= Module scripts ================= -->
-    <script src="leave_dashboard.js"></script>
-    <script src="calendar_manager.js"></script>
+    <script src="calendar_manager.js" defer></script>
+    <script src="leave_dashboard.js" defer></script>
 
     <!-- ================= Core scripts ================= -->
-    <!-- 🆕 Extras ต้องมาก่อน ui -->
-    <script src="dashboard_extras.js"></script>
-    <script src="dashboard_ui.js"></script>
-    <script src="dashboard_sidebar.js"></script>
-    <script src="dashboard_charts.js"></script>
-    <script src="dashboard_widgets.js"></script>
+    <script src="dashboard_extras.js" defer></script>
+    <script src="dashboard_ui.js" defer></script>
+    <script src="dashboard_sidebar.js" defer></script>
+    <script src="dashboard_charts.js" defer></script>
+    <script src="dashboard_widgets.js" defer></script>
 
     <!-- =======================================================
          Script เฉพาะ index.html
@@ -334,16 +328,14 @@
         const PERSONNEL_TABLE = 'core_personnel';
         const ENROLLMENT_STATUS = 'ปกติ';
 
-        // ✅ ปีการศึกษา/เทอม
         let CURRENT_ACADEMIC_YEAR = '';
         let CURRENT_SEMESTER = '';
 
-        // ====== State ======
         let currentUser = null;
         let activeModules = [];
         let userAdminModules = [];
         let currentCategory = 'academic';
-        let currentView = 'home';        // 'home' | 'modules' | 'search'
+        let currentView = 'home';
 
         const CATEGORY_NAMES = {
             academic: 'บริหารวิชาการ',
@@ -362,7 +354,6 @@
             { id: 'homevisit', category: 'general', moduleId: 'homevisit', title: 'เยี่ยมบ้านนักเรียน', desc: 'บันทึกข้อมูล พิกัดที่อยู่อาศัย และสภาพแวดล้อมนักเรียน', icon: 'fa-solid fa-house-chimney-user', url: 'homevisit.html' },
         ];
 
-        // ====== Helpers ======
         function personnelCategory(person) {
             const pos = (person.position || '').trim();
             if (pos === 'ผู้อำนวยการสถานศึกษา' || pos === 'รองผู้อำนวยการสถานศึกษา') return 'ฝ่ายบริหาร';
@@ -380,30 +371,19 @@
             return `ม.${n}`;
         }
 
-        // =======================================================
-        // ✅ อ่าน Category จาก URL (hash หรือ query string)
-        // =======================================================
         function getDesiredCategory() {
             const hash = (window.location.hash || '').replace('#', '').trim();
             if (hash && CATEGORY_NAMES[hash]) return hash;
-
             const params = new URLSearchParams(window.location.search);
             const tab = params.get('tab');
             if (tab && CATEGORY_NAMES[tab]) return tab;
-
             return null;
         }
 
-        // =======================================================
-        // 🧭 BREADCRUMB HELPER
-        // =======================================================
         function updateBreadcrumb() {
             if (!window.Breadcrumb) return;
-
             if (currentView === 'home') {
-                Breadcrumb.set([
-                    { label: 'หน้าหลัก' }
-                ]);
+                Breadcrumb.set([{ label: 'หน้าหลัก' }]);
             } else if (currentView === 'modules') {
                 Breadcrumb.set([
                     { label: 'หน้าหลัก', href: 'index.html' },
@@ -418,9 +398,6 @@
         }
         window.updateBreadcrumb = updateBreadcrumb;
 
-        // =======================================================
-        // ✅ FALLBACK CONFIG
-        // =======================================================
         function getFallbackSidebarConfig() {
             return {
                 brand: {
@@ -502,9 +479,6 @@
             };
         }
 
-        // =======================================================
-        // ✅ Render Sidebar + Topbar
-        // =======================================================
         async function buildSidebarAndTopbar() {
             let dbConfig = null;
 
@@ -519,7 +493,6 @@
                 console.warn('⚠️ โหลด Sidebar config จาก DB ไม่สำเร็จ → ใช้ fallback:', e);
             }
 
-            // ✅ แก้ตรงนี้ — นับ "departments" ด้วย
             const hasDbConfig = dbConfig && (
                 (dbConfig.mainMenu?.length > 0) ||
                 (dbConfig.moduleMenus?.length > 0) ||
@@ -537,97 +510,120 @@
                 search: { id: 'appSearch', placeholder: 'ค้นหาระบบงาน หรือเมนูต่างๆ...', oninput: 'handleSearchInput()' },
                 breadcrumb: [{ label: 'หน้าหลัก' }]
             });
-            // ✅ เพิ่ม 2 บรรทัดนี้
             if (typeof initIndexBirthdayNotification === 'function') {
                 await initIndexBirthdayNotification();
             }
         }
 
         // =======================================================
-        // Init
+        // 🚀 INIT — ใช้ DOMContentLoaded แทน window.onload
+        //    (เร็วกว่า ไม่รอรูปภาพ)
         // =======================================================
-        window.onload = async () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            const t0 = performance.now();
             try {
                 // 1) Auth
                 const result = await checkSessionAndRole('index', WRK_ROLES.ALLOWED);
                 if (!result) return;
-
                 currentUser = result.personnel;
+                console.log(`✅ Auth: ${Math.round(performance.now() - t0)} ms`);
 
-                // 2) โหลด module data
-                const { data: moduleAdmins } = await db
-                    .from('core_module_admins')
-                    .select('module_id')
-                    .eq('user_id', result.user.id);
-                userAdminModules = moduleAdmins ? moduleAdmins.map(m => m.module_id) : [];
+                // 2) 🚀 CACHE module data (5 นาที)
+                const MODULE_CACHE_KEY = 'index_module_data_cache';
+                const MODULE_CACHE_TTL = 5 * 60 * 1000;
 
-                // ✅ NEW: sync เข้า window._userModuleAdmins → ให้ sidebar filter ใช้
+                let adminsData, modulesData;
+                let fromCache = false;
+
+                try {
+                    const raw = sessionStorage.getItem(MODULE_CACHE_KEY);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (parsed.userId === result.user.id &&
+                            parsed.ts && Date.now() - parsed.ts < MODULE_CACHE_TTL) {
+                            adminsData = parsed.admins;
+                            modulesData = parsed.modules;
+                            fromCache = true;
+                        }
+                    }
+                } catch (e) { }
+
+                if (!fromCache) {
+                    const [adminsRes, modulesRes] = await Promise.all([
+                        db.from('core_module_admins').select('module_id').eq('user_id', result.user.id),
+                        db.from('core_system_modules').select('module_id, module_name, description, icon, url, category, display_order, is_active, target_blank, icon_bg_color, icon_text_color').order('display_order', { ascending: true })
+                    ]);
+                    adminsData = adminsRes.data || [];
+                    modulesData = modulesRes.data || [];
+                    try {
+                        sessionStorage.setItem(MODULE_CACHE_KEY, JSON.stringify({
+                            userId: result.user.id,
+                            ts: Date.now(),
+                            admins: adminsData,
+                            modules: modulesData
+                        }));
+                    } catch (e) { }
+                }
+
+                userAdminModules = adminsData.map(m => m.module_id);
                 window._userModuleAdmins = [...userAdminModules];
-                console.log('🔑 index: _userModuleAdmins =', window._userModuleAdmins);
+                console.log(`🔑 index: _userModuleAdmins = [${window._userModuleAdmins.join(', ')}] ${fromCache ? '(cached)' : '(fresh)'}`);
 
-                const { data: allCustomModules } = await db
-                    .from('core_system_modules')
-                    .select('*')
-                    .order('display_order', { ascending: true });
                 window.moduleOverrides = {};
                 activeModules = [];
-                if (allCustomModules) {
-                    allCustomModules.forEach(m => {
-                        window.moduleOverrides[m.module_id] = m;
-                        activeModules.push({ module_id: m.module_id, is_active: m.is_active, target_blank: m.target_blank });
-                    });
-                }
+                modulesData.forEach(m => {
+                    window.moduleOverrides[m.module_id] = m;
+                    activeModules.push({ module_id: m.module_id, is_active: m.is_active, target_blank: m.target_blank });
+                });
+                console.log(`✅ Module data: ${Math.round(performance.now() - t0)} ms`);
 
                 // 3) Render Sidebar + Topbar
                 await buildSidebarAndTopbar();
+                console.log(`✅ Sidebar+Topbar: ${Math.round(performance.now() - t0)} ms`);
 
-                // 4) แสดงหน้าเว็บ
+                // 4) แสดงหน้าเว็บ (แสดงเร็วที่สุด)
                 document.getElementById('portalView').classList.remove('hidden');
+                document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
 
-                // 5) โหลดข้อมูล
+                // 5) 🚀 UI updates + Fire-and-forget tasks (ไม่ block)
                 updateUI();
-                await checkCalendarAdminAccess();
-                await loadSickLeaveWidget();
+                checkCalendarAdminAccess().catch(e => console.warn(e));
+                loadSickLeaveWidget().catch(e => console.warn(e));
                 updateTotalAppStat();
-                await loadSchoolSettings();
-                loadDashboardStats();
+                loadSchoolSettings().then(() => {
+                    // หลังได้ปี/เทอม → ค่อยโหลด stats + charts
+                    loadDashboardStats().catch(e => console.warn(e));
+                });
                 initDashboardWidgets();
 
-                // ✅ 6) อ่าน hash/query → switch tab หรือกลับ home
+                // 6) อ่าน hash/query → switch tab
                 const desired = getDesiredCategory();
                 if (desired) {
-                    console.log(`🔗 URL hash detected: #${desired} → switchMainTab('${desired}')`);
+                    console.log(`🔗 URL hash: #${desired}`);
                     switchMainTab(desired, null);
                 } else {
                     switchToHome();
                 }
 
+                console.log(`⚡ Total (UI ready): ${Math.round(performance.now() - t0)} ms`);
+
             } catch (err) {
                 console.error('❌ Init error:', err);
+                // ✅ กันหน้าเว็บค้างขาว
+                document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
             } finally {
                 restoreSidebarCollapse();
-                document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
-            }
-        };
-
-        // =======================================================
-        // ✅ รับการเปลี่ยนแปลง hash (คลิกซ้ำ / กด Back-Forward)
-        // =======================================================
-        window.addEventListener('hashchange', () => {
-            const desired = getDesiredCategory();
-            if (desired) {
-                switchMainTab(desired, null);
-            } else {
-                switchToHome();
             }
         });
 
-        // =======================================================
-        // UI
-        // =======================================================
+        window.addEventListener('hashchange', () => {
+            const desired = getDesiredCategory();
+            if (desired) switchMainTab(desired, null);
+            else switchToHome();
+        });
+
         function updateUI() {
             if (!currentUser) return;
-
             setUserDisplayName(currentUser);
             updateUserRoleLabel(currentUser.role);
             renderUserAvatar(currentUser);
@@ -638,7 +634,6 @@
                 btnSuperAdmin.classList.toggle('hidden', !isSuperAdmin);
                 btnSuperAdmin.classList.toggle('flex', isSuperAdmin);
             }
-
             const canSeeHelpdesk = WRK_ROLES.SETTINGS.includes(currentUser.role);
             const btnHelpdesk = document.getElementById('adminHelpdeskBtn');
             if (btnHelpdesk) {
@@ -651,25 +646,19 @@
             const btn = document.getElementById('calendarAdminBtn');
             if (!btn) return;
 
-            const { data: { session } } = await db.auth.getSession();
-            if (!session) return;
-            const { data: profile } = await db.from('core_personnel').select('role').eq('id', session.user.id).single();
-            if (!profile) return;
+            // ✅ ใช้ currentUser ที่โหลดมาแล้ว (ไม่ต้อง query ใหม่)
+            if (!currentUser) return;
+            const role = currentUser.role;
 
-            const hasSettingsAccess = window.canManageSettings(profile.role);
-            if (!hasSettingsAccess) {
-                btn.classList.add('hidden');
-                return;
-            }
+            const hasSettingsAccess = window.canManageSettings(role);
+            if (!hasSettingsAccess) { btn.classList.add('hidden'); return; }
 
             try {
-                const managedDepts = await getUserManagedDepts(session.user.id);
+                const managedDepts = await getUserManagedDepts(currentUser.id);
                 if (managedDepts && managedDepts.length > 0) {
                     btn.classList.remove('hidden');
                     btn.classList.add('flex');
-                } else {
-                    btn.classList.add('hidden');
-                }
+                } else btn.classList.add('hidden');
             } catch (e) {
                 console.warn('checkCalendarAdminAccess error:', e);
                 btn.classList.add('hidden');
@@ -690,31 +679,19 @@
             setStat('statTotal', count);
         }
 
-        // =======================================================
-        // View Switching
-        // =======================================================
         function switchToHome() {
             currentView = 'home';
-
             document.getElementById('dashboardSection').classList.remove('hidden');
             document.getElementById('appModuleSection').classList.add('hidden');
-
             document.querySelectorAll('.d-nav a').forEach(a => a.classList.remove('active'));
             document.querySelectorAll('.d-nav-group > a.group-header').forEach(h => h.classList.remove('active'));
             document.querySelectorAll('.main-tab-btn').forEach(btn => btn.classList.remove('active'));
-
             const homeBtn = document.getElementById('homeTabBtn');
             if (homeBtn) homeBtn.classList.add('active');
-
             const s = document.getElementById('appSearch');
             if (s) s.value = '';
-
             toggleSidebar(false);
-
-            // ✅ อัปเดต Breadcrumb
             updateBreadcrumb();
-
-            // ✅ ถ้า URL มี hash อยู่ → ลบออก (ไม่ reload)
             if (window.location.hash) {
                 try { history.replaceState(null, '', window.location.pathname); } catch (e) { }
             }
@@ -723,42 +700,30 @@
         function switchMainTab(category, btnElement) {
             currentCategory = category;
             currentView = 'modules';
-
             document.getElementById('dashboardSection').classList.add('hidden');
             document.getElementById('appModuleSection').classList.remove('hidden');
-
             document.querySelectorAll('.d-nav a').forEach(a => a.classList.remove('active'));
             document.querySelectorAll('.d-nav-group > a.group-header').forEach(h => h.classList.remove('active'));
             document.querySelectorAll('.main-tab-btn').forEach(btn => btn.classList.remove('active'));
-
             const groupEl = document.querySelector(`.d-nav-group[data-group-id="${category}"]`);
             if (groupEl) {
                 groupEl.classList.add('expanded');
-
                 const header = groupEl.querySelector('a.group-header');
                 if (header) header.classList.add('active');
-
                 const firstChild = groupEl.querySelector('.d-submenu > a:first-child');
                 if (firstChild) firstChild.classList.add('active');
-
                 try {
                     const state = JSON.parse(localStorage.getItem('cp_sidebar_groups_open') || '{}');
                     state[category] = true;
                     localStorage.setItem('cp_sidebar_groups_open', JSON.stringify(state));
-                } catch (e) { /* ignore */ }
+                } catch (e) { }
             }
-
             const homeBtn = document.getElementById('homeTabBtn');
             if (homeBtn) homeBtn.classList.remove('active');
-
             const s = document.getElementById('appSearch');
             if (s) s.value = '';
-
             toggleSidebar(false);
-
-            // ✅ อัปเดต Breadcrumb
             updateBreadcrumb();
-
             if (currentUser) renderAppCards();
         }
 
@@ -773,13 +738,8 @@
                 updateBreadcrumb();
             }
             if (!q && currentView === 'search') {
-                // ล้างช่องค้นหา → กลับ home (หรือกลับ modules ถ้าเดิมอยู่ modules)
-                if (!document.querySelector('.main-tab-btn.active')) {
-                    switchToHome();
-                } else {
-                    currentView = 'modules';
-                    updateBreadcrumb();
-                }
+                if (!document.querySelector('.main-tab-btn.active')) switchToHome();
+                else { currentView = 'modules'; updateBreadcrumb(); }
                 return;
             }
             if (!q && currentView === 'modules' && !document.querySelector('.main-tab-btn.active')) {
@@ -787,15 +747,6 @@
                 return;
             }
             if (currentUser) renderAppCards();
-        }
-
-        // =======================================================
-        // Module Cards
-        // =======================================================
-        function getLockInfo(app) {
-            if (!app.isActive) return true;
-            if (app.reqAdmin) return !((currentUser.role === 'super_admin') || userAdminModules.includes(app.moduleId));
-            return false;
         }
 
         function renderAppCards() {
@@ -861,15 +812,10 @@
             appsToShow.forEach(app => {
                 let isLocked = false;
                 let lockReason = '';
-                if (!app.isActive) {
-                    isLocked = true;
-                    lockReason = 'ปิดปรับปรุงระบบชั่วคราว';
-                } else if (app.reqAdmin) {
+                if (!app.isActive) { isLocked = true; lockReason = 'ปิดปรับปรุงระบบชั่วคราว'; }
+                else if (app.reqAdmin) {
                     const hasAccess = (currentUser.role === 'super_admin') || userAdminModules.includes(app.moduleId);
-                    if (!hasAccess) {
-                        isLocked = true;
-                        lockReason = 'คุณไม่มีสิทธิ์เข้าถึงส่วนนี้';
-                    }
+                    if (!hasAccess) { isLocked = true; lockReason = 'คุณไม่มีสิทธิ์เข้าถึงส่วนนี้'; }
                 }
 
                 const card = document.createElement('div');
@@ -878,11 +824,8 @@
                     card.onclick = () => Swal.fire('ไม่สามารถเข้าใช้งานได้', lockReason, 'warning');
                 } else {
                     card.onclick = () => {
-                        if (app.target_blank === true || app.target_blank === 'true') {
-                            window.open(app.url, '_blank');
-                        } else {
-                            window.location.href = app.url;
-                        }
+                        if (app.target_blank === true || app.target_blank === 'true') window.open(app.url, '_blank');
+                        else window.location.href = app.url;
                     };
                 }
 
@@ -904,15 +847,11 @@
                 </div>
                 <div class="mt-5 pt-4 border-t border-gray-100 flex items-center text-sm font-bold ${isLocked ? 'text-gray-400' : 'text-blue-600 group-hover:text-blue-700'}">
                     ${isLocked ? 'ระบบถูกล็อก' : 'เข้าใช้งานระบบ <i class="fa-solid fa-arrow-right ml-1"></i>'}
-                </div>
-            `;
+                </div>`;
                 grid.appendChild(card);
             });
         }
 
-        // =======================================================
-        // School Settings
-        // =======================================================
         async function loadSchoolSettings() {
             try {
                 const { data, error } = await db
@@ -920,28 +859,17 @@
                     .select('current_academic_year, current_semester')
                     .eq('id', 1)
                     .single();
-
-                if (error) {
-                    console.warn('ไม่สามารถโหลดการตั้งค่าปีการศึกษาได้:', error.message);
-                    return;
-                }
-
+                if (error) { console.warn('ไม่สามารถโหลดการตั้งค่าปีการศึกษาได้:', error.message); return; }
                 CURRENT_ACADEMIC_YEAR = (data?.current_academic_year || '').toString();
                 CURRENT_SEMESTER = (data?.current_semester || '').toString();
-
                 console.log(`📅 ตั้งค่าปัจจุบัน: ปี ${CURRENT_ACADEMIC_YEAR} เทอม ${CURRENT_SEMESTER}`);
-            } catch (err) {
-                console.warn('loadSchoolSettings error:', err);
-            }
+            } catch (err) { console.warn('loadSchoolSettings error:', err); }
         }
 
-        // =======================================================
-        // Dashboard Stats + Charts
-        // =======================================================
         async function loadDashboardStats() {
             try {
                 if (!CURRENT_ACADEMIC_YEAR || !CURRENT_SEMESTER) {
-                    console.warn('ยังไม่ได้ตั้งค่าปีการศึกษา/เทอม ใน core_school_info');
+                    console.warn('ยังไม่ได้ตั้งค่าปีการศึกษา/เทอม');
                     setStat('statStudents', '—');
                     setStat('statPersonnel', '—');
                     renderBarChart('chartStudentsByLevel', ['ยังไม่ตั้งค่าปีการศึกษา'], [0], 'นักเรียน (คน)', '#cbd5e1');
@@ -949,34 +877,30 @@
                     return;
                 }
 
-                // =====================================================
-                // ✅ นักเรียน — JOIN ผ่าน core_classrooms (ที่เก็บปี/เทอม)
-                // =====================================================
-                const { data: enrollments, error: sLevelErr } = await db
-                    .from('student_enrollments')
-                    .select(`
-                student_id,
-                status,
-                core_classrooms!inner ( grade_level, academic_year, semester )
-            `)
-                    .eq('core_classrooms.academic_year', CURRENT_ACADEMIC_YEAR)
-                    .eq('core_classrooms.semester', CURRENT_SEMESTER)
-                    .eq('status', ENROLLMENT_STATUS);
+                // 🚀 PARALLEL: students + personnel 2 queries
+                const [enrollRes, personnelCountRes, personnelGroupRes] = await Promise.all([
+                    db.from('student_enrollments')
+                        .select(`student_id, status, core_classrooms!inner ( grade_level, academic_year, semester )`)
+                        .eq('core_classrooms.academic_year', CURRENT_ACADEMIC_YEAR)
+                        .eq('core_classrooms.semester', CURRENT_SEMESTER)
+                        .eq('status', ENROLLMENT_STATUS),
+                    db.from(PERSONNEL_TABLE).select('*', { count: 'exact', head: true }).or('is_deleted.is.null,is_deleted.eq.false'),
+                    db.from(PERSONNEL_TABLE).select('position').or('is_deleted.is.null,is_deleted.eq.false')
+                ]);
 
-                if (sLevelErr) {
-                    console.warn('students err:', sLevelErr.message);
+                // --- Students ---
+                const enrollments = enrollRes.data;
+                if (enrollRes.error) {
+                    console.warn('students err:', enrollRes.error.message);
                     setStat('statStudents', '—');
                     renderBarChart('chartStudentsByLevel', ['ไม่สามารถโหลดข้อมูล'], [0], 'นักเรียน (คน)', '#cbd5e1');
                 } else if (enrollments) {
-                    // นับ unique student_id (กันนักเรียนซ้ำห้อง/ซ้ำแถว)
                     const uniqueIds = new Set(enrollments.map(e => e.student_id));
                     setStat('statStudents', uniqueIds.size.toLocaleString());
 
-                    // จัดกลุ่มตามระดับชั้น
                     const buckets = {};
                     enrollments.forEach(e => {
-                        const lv = e.core_classrooms?.grade_level;
-                        const label = gradeLevelToLabel(lv);
+                        const label = gradeLevelToLabel(e.core_classrooms?.grade_level);
                         buckets[label] = (buckets[label] || 0) + 1;
                     });
 
@@ -986,41 +910,24 @@
                         return na - nb;
                     });
                     const values = labels.map(k => buckets[k]);
-
                     const totalStudents = values.reduce((s, v) => s + v, 0);
 
-                    // ✅ แสดง ปีการศึกษา / เทอม
                     const subtitleEl = document.getElementById('chartStudentsSubtitle');
-                    if (subtitleEl) {
-                        subtitleEl.textContent = `(ปีการศึกษา ${CURRENT_ACADEMIC_YEAR} / เทอม ${CURRENT_SEMESTER})`;
-                    }
-
-                    // ✅ แสดงจำนวนรวม
+                    if (subtitleEl) subtitleEl.textContent = `(ปีการศึกษา ${CURRENT_ACADEMIC_YEAR} / เทอม ${CURRENT_SEMESTER})`;
                     const totalLabel = document.getElementById('totalStudentsLabel');
-                    if (totalLabel) {
-                        totalLabel.textContent = `ทั้งหมด ${totalStudents.toLocaleString()} คน`;
-                    }
+                    if (totalLabel) totalLabel.textContent = `ทั้งหมด ${totalStudents.toLocaleString()} คน`;
 
                     const colors = buildColorArray(labels, CHART_PALETTES.primary);
                     renderBarChart('chartStudentsByLevel', labels, values, 'นักเรียน (คน)', colors);
                 }
 
-                // =====================================================
-                // บุคลากร (ไม่เปลี่ยน)
-                // =====================================================
-                const { count: personnelCount, error: pErr } = await db
-                    .from(PERSONNEL_TABLE)
-                    .select('*', { count: 'exact', head: true })
-                    .or('is_deleted.is.null,is_deleted.eq.false');
-                if (!pErr) setStat('statPersonnel', (personnelCount ?? 0).toLocaleString());
-                else console.warn('personnel count err:', pErr.message);
+                // --- Personnel count ---
+                if (!personnelCountRes.error) setStat('statPersonnel', (personnelCountRes.count ?? 0).toLocaleString());
+                else console.warn('personnel count err:', personnelCountRes.error.message);
 
-                const { data: personnel, error: pGroupErr } = await db
-                    .from(PERSONNEL_TABLE)
-                    .select('position')
-                    .or('is_deleted.is.null,is_deleted.eq.false');
-
-                if (!pGroupErr && personnel) {
+                // --- Personnel groups ---
+                const personnel = personnelGroupRes.data;
+                if (!personnelGroupRes.error && personnel) {
                     const buckets = {};
                     personnel.forEach(p => {
                         const group = personnelCategory(p);
@@ -1040,10 +947,9 @@
                         'อื่นๆ': '#94a3b8'
                     };
                     const colors = labels.map(k => GROUP_COLORS[k] || '#94a3b8');
-
                     renderHorizontalBarChart('chartPersonnelByGroup', labels, values, 'บุคลากร (คน)', colors);
-                } else if (pGroupErr) {
-                    console.warn('personnel group err:', pGroupErr.message);
+                } else if (personnelGroupRes.error) {
+                    console.warn('personnel group err:', personnelGroupRes.error.message);
                     renderHorizontalBarChart('chartPersonnelByGroup', ['ไม่สามารถโหลดข้อมูล'], [0], 'บุคลากร (คน)', '#cbd5e1');
                 }
             } catch (err) {
@@ -1051,9 +957,6 @@
             }
         }
 
-        // =======================================================
-        // เปลี่ยนรหัสผ่าน
-        // =======================================================
         async function changeMyPassword() {
             const { value: formValues } = await Swal.fire({
                 title: 'เปลี่ยนรหัสผ่าน',
@@ -1079,17 +982,11 @@
             if (formValues) {
                 Swal.fire({ title: 'กำลังอัปเดต...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                 const { error } = await db.auth.updateUser({ password: formValues });
-                if (error) {
-                    Swal.fire('ผิดพลาด', error.message, 'error');
-                } else {
-                    Swal.fire({ icon: 'success', title: 'เปลี่ยนรหัสผ่านสำเร็จ!', text: 'ครั้งต่อไปกรุณาใช้รหัสผ่านใหม่นี้ในการเข้าสู่ระบบ' });
-                }
+                if (error) Swal.fire('ผิดพลาด', error.message, 'error');
+                else Swal.fire({ icon: 'success', title: 'เปลี่ยนรหัสผ่านสำเร็จ!', text: 'ครั้งต่อไปกรุณาใช้รหัสผ่านใหม่นี้ในการเข้าสู่ระบบ' });
             }
         }
 
-        // =======================================================
-        // ✅ Expose Global Functions (ให้โมดูลอื่น / Sidebar onclick ใช้ได้)
-        // =======================================================
         window.switchToHome = switchToHome;
         window.switchMainTab = switchMainTab;
         window.changeMyPassword = changeMyPassword;
@@ -1100,7 +997,7 @@
 
     <script>
         // ============================================================
-        // 🎂 Birthday Notification — index.html
+        // 🎂 Birthday Notification
         // ============================================================
         let _indexBirthdayCache = { today: [], upcoming: [] };
 
@@ -1111,12 +1008,9 @@
             return _BD_AVATAR_COLORS[Math.abs(h) % _BD_AVATAR_COLORS.length];
         }
 
-        // ✅ 1) Inject badge หลัง .d-spacer ใน topbar (เรียกซ้ำได้ ปลอดภัย)
         async function initIndexBirthdayNotification() {
             const topbar = document.getElementById('dTopbar');
             if (!topbar) return;
-
-            // ถ้ามีอยู่แล้ว → ไม่อินเจคซ้ำ
             if (!topbar.querySelector('#birthday-notification')) {
                 const spacer = topbar.querySelector('.d-spacer');
                 if (!spacer) return;
@@ -1125,34 +1019,41 @@
                 span.className = 'hidden';
                 spacer.insertAdjacentElement('afterend', span);
             }
-
             await updateBirthdayNotification();
         }
 
-        // ✅ 2) ดึงข้อมูลวันเกิดจาก core_personnel แล้วอัปเดต badge
         async function updateBirthdayNotification() {
             const el = document.getElementById('birthday-notification');
             if (!el) return;
-
             try {
-                // ดึงเฉพาะฟิลด์ที่ใช้ — query เบา
-                const { data, error } = await db
-                    .from('core_personnel')
-                    .select('id, prefix, first_name, last_name, birth_date, position, department, avatar_url')
-                    .not('birth_date', 'is', null);
-
-                if (error) throw error;
+                let birthdayData = null;
+                try {
+                    const { data, error } = await db.rpc('get_upcoming_birthdays', { p_days: 7 });
+                    if (error) throw error;
+                    // ✅ JSONB → array
+                    birthdayData = Array.isArray(data) ? data : (data || []);
+                } catch (rpcErr) {
+                    console.warn('⚠️ RPC ไม่พร้อม → fallback:', rpcErr.message);
+                    const { data } = await db
+                        .from('core_personnel')
+                        .select('id, prefix, first_name, last_name, birth_date, position, department, avatar_url')
+                        .not('birth_date', 'is', null);
+                    birthdayData = (data || []).filter(p => {
+                        const bd = dayjs(p.birth_date);
+                        const thisYearBD = bd.set('year', dayjs().year());
+                        const diff = thisYearBD.diff(dayjs(), 'day');
+                        return diff >= 0 && diff <= 7;
+                    });
+                }
 
                 const today = dayjs();
-                const currentYear = today.year();
                 const birthdayToday = [];
                 const upcoming = [];
 
-                (data || []).forEach(p => {
+                (birthdayData || []).forEach(p => {
                     const bd = dayjs(p.birth_date);
-                    const thisYearBD = bd.set('year', currentYear);
+                    const thisYearBD = bd.set('year', today.year());
                     const diffDays = thisYearBD.diff(today, 'day');
-
                     if (diffDays === 0) birthdayToday.push(p);
                     else if (diffDays > 0 && diffDays <= 7) upcoming.push({ days: diffDays, person: p });
                 });
@@ -1176,11 +1077,9 @@
                         : `🎂 วันเกิดวันนี้: ${birthdayToday[0].prefix || ''}${birthdayToday[0].first_name} ${birthdayToday[0].last_name}`;
                 } else {
                     const sorted = [...upcoming].sort((a, b) => a.days - b.days);
-                    const d = sorted[0].days;
-                    msg = `🎉 จะมีวันเกิดใน ${d} วัน (${sorted.length} คน)`;
+                    msg = `🎉 จะมีวันเกิดใน ${sorted[0].days} วัน (${sorted.length} คน)`;
                 }
                 el.textContent = msg;
-
                 void el.offsetWidth;
                 el.classList.add('animated');
             } catch (err) {
@@ -1189,18 +1088,15 @@
             }
         }
 
-        // ✅ 3) Modal
         function openBirthdayModal() {
             const { today: bdToday, upcoming } = _indexBirthdayCache;
             if (bdToday.length === 0 && upcoming.length === 0) return;
-
             const modal = document.getElementById('birthday-modal');
             const content = document.getElementById('birthday-modal-content');
             if (!modal || !content) return;
 
             let html = '';
 
-            // --- ส่วนที่ 1: วันเกิดวันนี้ ---
             if (bdToday.length > 0) {
                 html += `
             <div class="mb-5">
@@ -1227,11 +1123,9 @@
                         </div>
                     `).join('')}
                 </div>
-            </div>
-        `;
+            </div>`;
             }
 
-            // --- ส่วนที่ 2: กำลังจะมาถึง (≤ 7 วัน) ---
             if (upcoming.length > 0) {
                 const grouped = {};
                 upcoming.forEach(item => {
@@ -1239,6 +1133,7 @@
                     grouped[item.days].push(item.person);
                 });
                 const sortedDays = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+                const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
                 html += `
             <div>
@@ -1262,9 +1157,6 @@
                             <div class="divide-y divide-slate-100 bg-white">
                                 ${grouped[days].map(p => {
                     const bdThisYear = dayjs(p.birth_date).set('year', dayjs().year());
-                    // ✅ ใช้ Array ชื่อเดือนไทย — ไม่พึ่ง dayjs locale
-                    const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-                        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
                     const dateStr = `${bdThisYear.date()} ${THAI_MONTHS[bdThisYear.month()]}`;
                     return `
                                         <div class="flex items-center gap-3 p-2.5">
@@ -1276,15 +1168,13 @@
                                                 <p class="text-[10px] text-slate-400 truncate">${p.position || '-'} | ${p.department || '-'}</p>
                                             </div>
                                             <div class="text-xs font-bold text-amber-600 flex-shrink-0">${dateStr}</div>
-                                        </div>
-                                    `;
+                                        </div>`;
                 }).join('')}
                             </div>
                         </div>
                     `).join('')}
                 </div>
-            </div>
-        `;
+            </div>`;
             }
 
             content.innerHTML = html;
@@ -1299,7 +1189,6 @@
             modal.classList.remove('flex');
         }
 
-        // ✅ Expose globals
         window.initIndexBirthdayNotification = initIndexBirthdayNotification;
         window.updateBirthdayNotification = updateBirthdayNotification;
         window.openBirthdayModal = openBirthdayModal;
