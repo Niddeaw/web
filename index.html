@@ -479,6 +479,35 @@
             };
         }
 
+        function applyModuleActiveToSidebar(cfg) {
+            const overrides = window.moduleOverrides || {};
+            const moduleOf = (item) => {
+                const key = item._sourceModule ||
+                    (typeof item.id === 'string' && item.id.endsWith('_nav') ? item.id.slice(0, -4) : null);
+                return (key && overrides[key]) ? overrides[key] : null;
+            };
+            const walk = (items) => {
+                if (!Array.isArray(items)) return;
+                items.forEach(it => {
+                    if (!it) return;
+                    const mod = moduleOf(it);
+                    if (mod) {
+                        if (mod.is_active === false) {
+                            it.hidden = true;                       // ปิดโมดูล → ซ่อน
+                        } else if (it._autoSynced) {
+                            delete it.hidden;                       // เปิดโมดูล → แสดง (กัน config/cache เก่าที่ยัง hidden)
+                        }
+                    }
+                    if (Array.isArray(it.children)) walk(it.children);
+                });
+            };
+            walk(cfg.mainMenu);
+            walk(cfg.footerMenu);
+            walk(cfg.departments);
+            if (Array.isArray(cfg.moduleMenus)) cfg.moduleMenus.forEach(m => walk(m.items));
+            return cfg;
+        }
+
         async function buildSidebarAndTopbar() {
             let dbConfig = null;
 
@@ -500,6 +529,13 @@
             );
 
             const finalConfig = hasDbConfig ? dbConfig : getFallbackSidebarConfig();
+
+            // ✅ แชร์สถานะโมดูลสดให้ dashboard_sidebar.js (ใช้ logic กลางตัวเดียวกับทุกหน้า)
+            window._moduleActiveMap = {};
+            Object.values(window.moduleOverrides || {}).forEach(m => {
+                window._moduleActiveMap[m.module_id] = m.is_active !== false;
+            });
+            window.applyModuleActiveToConfig(finalConfig);
 
             console.log(hasDbConfig
                 ? `✅ Sidebar: DB → main=${finalConfig.mainMenu?.length || 0}, modules=${finalConfig.moduleMenus?.length || 0}, depts=${finalConfig.departments?.length || 0} (showAll=${finalConfig.showAllDepartments})`
@@ -548,10 +584,20 @@
                     }
                 } catch (e) { }
 
+                // ✅ สถานะเปิด/ปิดโมดูล (is_active) ต้องสดเสมอ → ไม่ใช้ cache
+                const modulesPromise = db.from('core_system_modules')
+                    .select('module_id, module_name, description, icon, url, category, display_order, is_active, target_blank, icon_bg_color, icon_text_color')
+                    .order('display_order', { ascending: true });
+
+                if (fromCache) {
+                    const modulesRes = await modulesPromise;
+                    modulesData = modulesRes.data || [];
+                }
+
                 if (!fromCache) {
                     const [adminsRes, modulesRes] = await Promise.all([
                         db.from('core_module_admins').select('module_id').eq('user_id', result.user.id),
-                        db.from('core_system_modules').select('module_id, module_name, description, icon, url, category, display_order, is_active, target_blank, icon_bg_color, icon_text_color').order('display_order', { ascending: true })
+                        modulesPromise
                     ]);
                     adminsData = adminsRes.data || [];
                     modulesData = modulesRes.data || [];
@@ -670,10 +716,13 @@
             let count = 0;
             ALL_APPS.forEach(app => {
                 if (app.reqSuperAdmin && currentUser.role !== 'super_admin') return;
+                // ✅ ไม่นับโมดูลที่ปิดใช้งาน
+                if (overrides[app.moduleId] && overrides[app.moduleId].is_active === false) return;
                 count++;
             });
             Object.values(overrides).forEach(mod => {
                 if (ALL_APPS.some(app => app.moduleId === mod.module_id)) return;
+                if (mod.is_active === false) return;
                 count++;
             });
             setStat('statTotal', count);
@@ -797,6 +846,9 @@
                     target_blank: mod.target_blank || false
                 });
             });
+
+            // ✅ ซ่อนโมดูลที่ปิดใช้งาน (ไม่แสดงเป็นการ์ดล็อกอีกต่อไป)
+            appsToDisplay = appsToDisplay.filter(app => app.isActive !== false);
 
             const q = ((document.getElementById('appSearch') || {}).value || '').trim().toLowerCase();
             document.getElementById('appSectionTitle').textContent = q ? 'ผลการค้นหา' : (CATEGORY_NAMES[currentCategory] || '');

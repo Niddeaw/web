@@ -136,6 +136,41 @@ function clearAuthPersonnelCache() {
 }
 
 // ==========================================
+// 🔒 Module Guard — ตรวจว่าหน้าปัจจุบันเป็นของโมดูลที่ปิดอยู่หรือไม่
+//    จับคู่จากชื่อไฟล์หน้าเว็บ กับ core_system_modules.url
+//    คืนชื่อโมดูล (ถ้าปิดอยู่) หรือ null (ถ้าเปิด/ไม่ใช่หน้าโมดูล/โหลดไม่ได้)
+// ==========================================
+function _pageBasename(u) {
+    if (!u) return '';
+    try {
+        let p = String(u).trim().split('#')[0].split('?')[0];
+        p = p.replace(/^https?:\/\/[^/]+/i, '');
+        const seg = p.split('/').filter(Boolean).pop() || '';
+        return seg.toLowerCase();
+    } catch (e) { return ''; }
+}
+
+async function _isCurrentPageModuleDisabled() {
+    try {
+        const page = _pageBasename(window.location.pathname);
+        if (!page || page === 'index.html' || page === 'login.html') return null;
+
+        const { data, error } = await db
+            .from('core_system_modules')
+            .select('module_name, url, is_active');
+        if (error || !data) return null;                 // โหลดไม่ได้ → ปล่อยผ่าน (fail-open)
+
+        const matches = data.filter(m => _pageBasename(m.url) === page);
+        if (matches.length === 0) return null;           // ไม่ใช่หน้าโมดูล
+        if (matches.some(m => m.is_active !== false)) return null;  // มีอย่างน้อย 1 โมดูลที่ยังเปิด
+        return matches[0].module_name || page;
+    } catch (e) {
+        console.warn('module guard error:', e);
+        return null;
+    }
+}
+
+// ==========================================
 // 🚀 checkSessionAndRole — ตรวจสอบ session และ role
 //    ✅ v2.1: ใช้ getSession() แทน getUser() (เร็วกว่า 20-100 เท่า)
 //    ✅ v2.1: ลด select('*') → เลือกเฉพาะคอลัมน์ที่ใช้
@@ -198,6 +233,23 @@ async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
     const isAdmin   = WRK_ROLES.ADMIN.includes(role);
     const isTeacher = WRK_ROLES.TEACHER.includes(role);
     const isOffice  = WRK_ROLES.OFFICE.includes(role);
+
+    // ✅ บล็อกการเข้าหน้าโมดูลที่ถูกปิดใช้งาน (เข้าผ่าน URL ตรง/บุ๊กมาร์ก)
+    if (role !== 'super_admin') {
+        const blocked = await _isCurrentPageModuleDisabled();
+        if (blocked) {
+            await Swal.fire({
+                icon: 'info',
+                title: 'ระบบปิดใช้งานชั่วคราว',
+                text: `ระบบ "${blocked}" ปิดปรับปรุงชั่วคราว`,
+                confirmButtonText: 'กลับหน้าหลัก',
+                allowOutsideClick: false,
+                allowEscapeKey: false
+            });
+            window.location.href = 'index.html';
+            return null;
+        }
+    }
 
     // ✅ เก็บ role ไว้ใช้ทั้งระบบ (Sidebar filter, UI)
     window.currentUserRole = role;

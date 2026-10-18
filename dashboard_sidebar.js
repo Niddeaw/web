@@ -289,6 +289,57 @@ function _lookupModuleAdminById(itemId) {
 }
 
 // ==========================================
+// ✅ Module Active State → Sidebar (ใช้ร่วมทุกหน้า)
+//    - โหลดสถานะ is_active สดจาก core_system_modules (1 query / 1 หน้า)
+//    - โมดูลปิด  → ซ่อนเมนูที่ผูกกับโมดูล (_sourceModule หรือ id = <module>_nav)
+//    - โมดูลเปิด → แสดงเมนูที่ sync มาเอง (_autoSynced) แม้ config/cache จะค้าง hidden
+// ==========================================
+window._moduleActiveMap = window._moduleActiveMap || null;
+let _moduleActiveMapPromise = null;
+
+window.loadModuleActiveMap = function (force = false) {
+    if (!force && _moduleActiveMapPromise) return _moduleActiveMapPromise;
+    _moduleActiveMapPromise = (async () => {
+        try {
+            if (typeof db === 'undefined') return null;
+            const { data, error } = await db.from('core_system_modules').select('module_id, is_active');
+            if (error) throw error;
+            const map = {};
+            (data || []).forEach(m => { map[m.module_id] = m.is_active !== false; });
+            window._moduleActiveMap = map;
+            return map;
+        } catch (e) {
+            console.warn('⚠️ loadModuleActiveMap error:', e);
+            return null;
+        }
+    })();
+    return _moduleActiveMapPromise;
+};
+
+window.applyModuleActiveToConfig = function (cfg, map) {
+    const m = map || window._moduleActiveMap;
+    if (!cfg || !m) return cfg;
+    const walk = (items) => {
+        if (!Array.isArray(items)) return;
+        items.forEach(it => {
+            if (!it) return;
+            const key = it._sourceModule ||
+                (typeof it.id === 'string' && it.id.endsWith('_nav') ? it.id.slice(0, -4) : null);
+            if (key && Object.prototype.hasOwnProperty.call(m, key)) {
+                if (m[key] === false) it.hidden = true;
+                else if (it._autoSynced) delete it.hidden;
+            }
+            if (Array.isArray(it.children)) walk(it.children);
+        });
+    };
+    walk(cfg.mainMenu);
+    walk(cfg.footerMenu);
+    walk(cfg.departments);
+    if (Array.isArray(cfg.moduleMenus)) cfg.moduleMenus.forEach(sec => walk(sec && sec.items));
+    return cfg;
+};
+
+// ==========================================
 // ✅ Render Sidebar
 // ==========================================
 window.renderSidebar = function (config) {
@@ -298,6 +349,19 @@ window.renderSidebar = function (config) {
     }
 
     _currentSidebarConfig = config;
+
+    // ✅ ซ่อน/แสดงเมนูตามสถานะโมดูลสด (ทุกหน้าใช้ร่วมกัน)
+    if (window._moduleActiveMap) {
+        window.applyModuleActiveToConfig(config);
+    } else {
+        // ยังไม่เคยโหลดสถานะ → โหลดแล้ว render ซ้ำ 1 ครั้ง
+        window.loadModuleActiveMap().then(map => {
+            if (map && _currentSidebarConfig === config) {
+                window.renderSidebar(config);
+                if (_currentActiveId) setTimeout(() => setActiveNavItem(_currentActiveId), 50);
+            }
+        });
+    }
 
     const sidebar = document.getElementById('dSidebar');
     if (!sidebar) return;
@@ -492,6 +556,10 @@ function _renderSingleItem(item, styleMode, depth) {
     if (hasChildren) {
         const visibleChildren = item.children.filter(c => !c.hidden && _isItemVisibleByRole(c));
         if (visibleChildren.length === 0) return '';
+
+        // ✅ ถ้ากลุ่มมีแต่ "ดูภาพรวมทั้งหมด" (ไม่เหลือโมดูลจริง) → ซ่อนทั้งกลุ่ม
+        if (item.children.some(c => c._isOverview) &&
+            visibleChildren.every(c => c._isOverview)) return '';
 
         return `
             <div class="d-nav-group">
@@ -923,7 +991,10 @@ window.initModuleSidebar = async function (options) {
 
     console.log(`🎯 initModuleSidebar: moduleKey="${moduleKey}", skipAutoRender=${skipAutoRender}`);
 
-    const { config: finalConfig, from } = await loadModuleSidebarConfig(moduleKey, fallbackConfig);
+    const [{ config: finalConfig, from }] = await Promise.all([
+        loadModuleSidebarConfig(moduleKey, fallbackConfig),
+        window.loadModuleActiveMap()
+    ]);
 
     console.log(`📚 Sidebar config [${from}]`);
 
@@ -1033,8 +1104,10 @@ function _escapeAttr(str) {
             if (action === 'clear_cache') {
                 if (moduleKey) {
                     sessionStorage.removeItem(`wrk_sidebar_cfg_${moduleKey}`);
+                    sessionStorage.removeItem('index_module_data_cache');
                     console.log(`🔄 Sync: ล้าง cache ของ "${moduleKey}"`);
                 } else {
+                    sessionStorage.removeItem('index_module_data_cache');
                     Object.keys(sessionStorage).forEach(k => {
                         if (k.startsWith('wrk_sidebar_cfg_')) {
                             sessionStorage.removeItem(k);
@@ -1072,6 +1145,7 @@ window.broadcastSidebarUpdate = function (moduleKey = null) {
         console.warn('⚠️ Broadcast error:', e);
     }
     
+    try { sessionStorage.removeItem('index_module_data_cache'); } catch (e) { }
     if (moduleKey) {
         sessionStorage.removeItem(`wrk_sidebar_cfg_${moduleKey}`);
     } else {
