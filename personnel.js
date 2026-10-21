@@ -1043,6 +1043,56 @@ function isoToBE(iso) {
     return `${String(d.date()).padStart(2, '0')}/${String(d.month() + 1).padStart(2, '0')}/${d.year() + 543}`;
 }
 
+/* ── กลุ่มสาระการเรียนรู้: จับคู่ค่าเดิมกับรายการมาตรฐาน ── */
+const LEARNING_AREAS = [
+    'ภาษาไทย',
+    'คณิตศาสตร์',
+    'วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)',
+    'วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)',
+    'สังคมศึกษา ศาสนาและวัฒนธรรม',
+    'สุขศึกษาและพลศึกษา',
+    'ศิลปะ',
+    'การงานอาชีพ',
+    'ภาษาต่างประเทศ (ภาษาอังกฤษ)',
+    'ภาษาต่างประเทศ (ภาษาจีน)',
+    'แนะแนว'
+];
+function normalizeLearningArea(v) {
+    if (!v) return '';
+    const raw = String(v).replace(/\s+/g, ' ').trim();
+    const sel = document.getElementById('sel-learning-area');
+    const all = [...LEARNING_AREAS, ...(sel ? [...sel.options].map(o => o.value) : [])];
+    const strip = s => String(s).replace(/[\s()]/g, '');
+    const exact = all.find(a => a && strip(a) === strip(raw));
+    if (exact) return exact;
+    // ชื่อเดิมแบบย่อ/แบบเก่า
+    if (/จีน/.test(raw)) return 'ภาษาต่างประเทศ (ภาษาจีน)';
+    if (/อังกฤษ|ต่างประเทศ/.test(raw)) return 'ภาษาต่างประเทศ (ภาษาอังกฤษ)';
+    if (/\(เทคโนโลยี\)/.test(raw) || (/เทคโนโลยี|คอมพิวเตอร์/.test(raw) && !/วิทยาศาสตร์/.test(raw))) return 'วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)';
+    if (/วิทยาศาสตร์/.test(raw)) return 'วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)';
+    if (/สังคม/.test(raw)) return 'สังคมศึกษา ศาสนาและวัฒนธรรม';
+    if (/สุขศึกษา|พลศึกษา|พละ/.test(raw)) return 'สุขศึกษาและพลศึกษา';
+    if (/การงาน|อาชีพ/.test(raw)) return 'การงานอาชีพ';
+    if (/ศิลปะ|ดนตรี|นาฏศิลป์/.test(raw)) return 'ศิลปะ';
+    if (/คณิต/.test(raw)) return 'คณิตศาสตร์';
+    if (/ไทย/.test(raw)) return 'ภาษาไทย';
+    if (/แนะแนว/.test(raw)) return 'แนะแนว';
+    return raw;
+}
+function setLearningArea(v) {
+    const sel = document.getElementById('sel-learning-area');
+    if (!sel) return;
+    sel.querySelectorAll('option[data-legacy]').forEach(o => o.remove());
+    const val = normalizeLearningArea(v);
+    if (val && ![...sel.options].some(o => o.value === val)) {
+        // ค่าที่ไม่อยู่ในรายการ: เพิ่มเป็นตัวเลือกชั่วคราว เพื่อไม่ให้ข้อมูลหาย
+        const opt = document.createElement('option');
+        opt.value = val; opt.textContent = val + ' (ค่าเดิม)'; opt.dataset.legacy = '1';
+        sel.appendChild(opt);
+    }
+    sel.value = val;
+}
+
 function populateForm(p) {
     const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
     document.getElementById('modal-title').textContent = `แก้ไข: ${fullName}`;
@@ -1059,7 +1109,7 @@ function populateForm(p) {
 
     document.getElementById('inp-cid').value = p.national_id || '';
     document.getElementById('inp-phone').value = p.phone || '';
-    document.getElementById('sel-learning-area').value = p.department || '';
+    setLearningArea(p.department);
     document.getElementById('inp-position-number').value = p.position_number || '';
     document.getElementById('inp-license-number').value = p.license_number || '';
     document.getElementById('sel-pa-status').value = p.pa_status || '';
