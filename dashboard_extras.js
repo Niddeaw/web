@@ -441,6 +441,28 @@ const NotificationCenter = {
     // 🚀 เคลียร์ items ก่อน fetch เสมอ + parallel
     async _loadFromSources() {
         this._items = [];
+        
+        // ✅ [Fallback] ถ้ายังไม่มี currentProfile ให้ลองดึงจาก Session ตรงๆ
+        if (!window.currentProfile && typeof db !== 'undefined') {
+            try {
+                const { data: { session } } = await db.auth.getSession();
+                if (session?.user) {
+                    const { data: personnel } = await db.from('core_personnel')
+                        .select('id, prefix, first_name, last_name, role')
+                        .eq('id', session.user.id)
+                        .single();
+                    if (personnel) {
+                        window.currentProfile = personnel;
+                        window.currentUserRole = personnel.role;
+                        window.currentUser = session.user;
+                        console.log('🔄 [NotifCenter] Fallback Auth: Set Global Variables สำเร็จ');
+                    }
+                }
+            } catch (e) { 
+                console.warn('Notif fallback auth error:', e); 
+            }
+        }
+
         await Promise.all(this._sources.map(async (source) => {
             try {
                 const items = await source.fetch();

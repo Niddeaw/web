@@ -172,9 +172,7 @@ async function _isCurrentPageModuleDisabled() {
 
 // ==========================================
 // 🚀 checkSessionAndRole — ตรวจสอบ session และ role
-//    ✅ v2.1: ใช้ getSession() แทน getUser() (เร็วกว่า 20-100 เท่า)
-//    ✅ v2.1: ลด select('*') → เลือกเฉพาะคอลัมน์ที่ใช้
-//    ✅ v2.1: Cache personnel 5 นาที
+//    ✅ v2.2: เพิ่มการ Set Global User/Profile (แก้ปัญหาแจ้งเตือนไม่ขึ้น)
 // ==========================================
 async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
     const t0 = performance.now();
@@ -251,8 +249,13 @@ async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
         }
     }
 
-    // ✅ เก็บ role ไว้ใช้ทั้งระบบ (Sidebar filter, UI)
+    // ==========================================
+    // ✅ [สำคัญมาก] เก็บข้อมูลไว้ใน Global Scope
+    // เพื่อให้ NotificationCenter, Sidebar และ UI อื่นๆ ใช้งานได้
+    // ==========================================
     window.currentUserRole = role;
+    window.currentProfile = personnel; // 🔔 เพิ่มบรรทัดนี้
+    window.currentUser = user;         // 🔔 เพิ่มบรรทัดนี้
 
     console.log(`⚡ [checkSessionAndRole] ${moduleName}: ${Math.round(performance.now() - t0)} ms`);
 

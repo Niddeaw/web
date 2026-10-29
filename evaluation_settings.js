@@ -55,6 +55,10 @@ async function checkAuth() {
         window.currentUserRole = profile.role;
     }
 
+    // ✅ [สำคัญ] ตั้งค่า Global สำหรับ Notification Center / ระบบอื่นๆ
+    window.currentProfile = profile;
+    window.currentUser = session.user;
+
     // ✅ UI มาตรฐานจาก dashboard_ui.js
     if (profile) {
         setUserDisplayName(profile);

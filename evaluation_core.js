@@ -441,7 +441,7 @@ function canEvaluate(type) {
 }
 
 // ==========================================
-// ✅ ฟังก์ชัน checkAuth (แก้ไข — ใช้เทมเพลตใหม่)
+// ✅ ฟังก์ชัน checkAuth (แก้ไข — เพิ่ม Global Variables)
 // ==========================================
 async function checkAuth() {
     Swal.fire({ title: 'กำลังโหลดระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -459,6 +459,15 @@ async function checkAuth() {
 
     currentUser = profile;
     currentTermData = schoolInfo;
+
+    // ==========================================
+    // ✅ [สำคัญมาก] ตั้งค่า Global สำหรับ Notification / Sidebar
+    // ==========================================
+    if (profile && profile.role) {
+        window.currentUserRole = profile.role;
+    }
+    window.currentProfile = profile;
+    window.currentUser = session.user;
 
     // ✅ ใช้ EVAL_ROLES จาก config (Single Source of Truth)
     const allowedAcademicStanding = ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
@@ -489,8 +498,6 @@ async function checkAuth() {
             selfEvalCard.classList.add('hidden');
         }
     }
-
-    // ⛔ ลบปุ่ม btnGoToAdmin / btnGoToSettings เก่าออกแล้ว (ใช้ Sidebar แทน)
 
     await Promise.all([
         loadEvaluationRound(),
@@ -536,7 +543,6 @@ async function checkAuth() {
     Swal.close();
     document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
 }
-
 
 // ==========================================
 // โหลดรอบการประเมินที่ Active
