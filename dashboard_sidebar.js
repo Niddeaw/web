@@ -772,6 +772,8 @@ window.renderTopbar = function (options = {}) {
                     <span id="userAvatarInitial">?</span>
                     <img id="userAvatarImg" src="" alt="" style="display:none;">
                 </div>
+                <!-- ✅ เพิ่มบรรทัดนี้ เพื่อใช้แสดงรูปใหญ่ตอน Hover -->
+                <img id="userAvatarPreview" class="d-avatar-preview" src="" alt="" style="display:none;">
             </div>
             <div>
                 <b id="userName" class="text-sm">กำลังโหลด...</b>
@@ -875,12 +877,13 @@ window.renderUserAvatar = function (user) {
     const avatarEl = document.getElementById('userAvatar');
     const initialEl = document.getElementById('userAvatarInitial');
     const imgEl = document.getElementById('userAvatarImg');
+    const previewEl = document.getElementById('userAvatarPreview'); // ✅ ดึง Element รูปใหญ่
+
     if (!avatarEl) return;
 
     const fullName = `${user.prefix || ''}${user.first_name || ''} ${user.last_name || ''}`.trim();
     const initial = (user.first_name || '?').charAt(0).toUpperCase();
 
-    // ✅ Fallback order ตรงกับ dashboard_ui.js
     const avatarUrl = user.avatar_students_url
         || user.avatar_staff_url
         || user.avatar_url
@@ -913,12 +916,20 @@ window.renderUserAvatar = function (user) {
             };
             initialEl.style.display = 'none';
         }
+
+        // ✅ อัปเดตข้อมูลรูปใหญ่สำหรับ Hover
+        if (previewEl) {
+            previewEl.src = finalUrl;
+            previewEl.style.display = 'block';
+        }
+
     } else {
         if (initialEl) {
             initialEl.textContent = initial;
             initialEl.style.display = 'block';
         }
         if (imgEl) imgEl.style.display = 'none';
+        if (previewEl) previewEl.style.display = 'none'; // ✅ ซ่อนรูปใหญ่ถ้าไม่มีรูป
     }
 };
 
