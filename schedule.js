@@ -101,7 +101,7 @@ $(document).ready(async () => {
         updateRoomFilter();
         updateSummaryBadge();
 
-        startNotificationTimer();
+        // startNotificationTimer();
         console.log('✅ Schedule module ready');
     } catch (err) {
         console.error('Init error:', err);
