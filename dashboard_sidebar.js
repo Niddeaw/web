@@ -47,32 +47,55 @@ window.toggleSidebar = function (forceState) {
 };
 
 // ==========================================
-// Toggle Sidebar Collapse (Desktop)
+// Toggle Sidebar Collapse (Desktop) — FIXED
+// ใช้ class ที่ตรงกับ dashboard.css (.collapsed)
+// และใช้ localStorage key เดียวกับ dashboard_ui.js
 // ==========================================
 window.toggleSidebarCollapse = function () {
-    const body = document.body;
-    body.classList.toggle('sidebar-collapsed');
-
+    const sb = document.getElementById('dSidebar');
+    const main = document.getElementById('dMain');
     const btn = document.getElementById('collapseBtn');
-    if (btn) {
-        const icon = btn.querySelector('i');
-        if (icon) {
-            icon.classList.toggle('fa-angles-left');
-            icon.classList.toggle('fa-angles-right');
+    if (!sb) return;
+
+    const next = !sb.classList.contains('collapsed');
+
+    // ใช้ applySidebarCollapsed จาก dashboard_ui.js (ถ้ามี)
+    if (typeof applySidebarCollapsed === 'function') {
+        applySidebarCollapsed(next);
+    } else {
+        sb.classList.toggle('collapsed', next);
+        if (main) main.classList.toggle('collapsed', next);
+        document.body.classList.toggle('sb-collapsed', next);
+        if (btn) {
+            const icon = btn.querySelector('i');
+            if (icon) {
+                icon.classList.toggle('fa-angles-left', !next);
+                icon.classList.toggle('fa-angles-right', next);
+            }
+            btn.title = next ? 'ขยายเมนู' : 'ย่อเมนู';
         }
     }
 
-    try {
-        localStorage.setItem('wrk_sidebar_collapsed',
-            body.classList.contains('sidebar-collapsed') ? '1' : '0');
-    } catch (e) { }
+    try { localStorage.setItem('cp_sidebar_collapsed', next ? '1' : '0'); } catch (e) { }
 };
 
-// Restore collapse state
+// Restore collapse state (ใช้ key เดียวกับ dashboard_ui.js)
 (function restoreCollapseState() {
     try {
-        if (localStorage.getItem('wrk_sidebar_collapsed') === '1') {
-            document.body.classList.add('sidebar-collapsed');
+        if (localStorage.getItem('cp_sidebar_collapsed') === '1' && window.innerWidth > 760) {
+            const sb = document.getElementById('dSidebar');
+            const main = document.getElementById('dMain');
+            const btn = document.getElementById('collapseBtn');
+            if (sb) sb.classList.add('collapsed');
+            if (main) main.classList.add('collapsed');
+            document.body.classList.add('sb-collapsed');
+            if (btn) {
+                const icon = btn.querySelector('i');
+                if (icon) {
+                    icon.classList.remove('fa-angles-left');
+                    icon.classList.add('fa-angles-right');
+                }
+            }
         }
     } catch (e) { }
 })();
