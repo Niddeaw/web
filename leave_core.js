@@ -4,6 +4,17 @@
 // ประกาศฟังก์ชันเป็น global เพื่อให้ไฟล์อื่นเรียกใช้ได้
 
 // ==========================================
+// 0. Helper: ทำความสะอาดชื่อกลุ่มสาระฯ (สำคัญมาก)
+// ลบช่องว่างซ้อน, ช่องว่างหัวท้าย, และ zero-width space
+// ==========================================
+window._normalizeDeptName = function (s) {
+    return String(s || '')
+        .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '')  // ลบ zero-width และ NBSP
+        .replace(/\s+/g, ' ')                         // ยุบช่องว่างหลายช่องให้เหลือ 1 ช่อง
+        .trim();                                      // ตัดช่องว่างหัว-ท้าย
+};
+
+// ==========================================
 // 1. ฟังก์ชันหาเพศจากคำนำหน้า
 // ==========================================
 window.getGenderFromPrefix = function (prefix) {
@@ -263,9 +274,10 @@ window.generateLeavePDF = async function (id, systemSettings) {
                 commanderName = deputyAcademicName;
                 commanderPosition = 'รองผู้อำนวยการกลุ่มบริหารวิชาการ';
             } else {
+                // ใช้ ilike เพื่อความยืดหยุ่นในการหาชื่อกลุ่ม (แก้ปัญหาเว้นวรรค)
                 const { data: headPerson } = await db.from('core_department_heads')
                     .select('core_personnel!inner(prefix, first_name, last_name)')
-                    .eq('department_name', p.department)
+                    .ilike('department_name', p.department.trim())
                     .maybeSingle();
                 if (headPerson?.core_personnel) {
                     const head = headPerson.core_personnel;
@@ -612,7 +624,7 @@ window.getDepartmentHeadInfo = async function (userId) {
     }
 };
 
-// ตรวจสอบว่าใบลานี้ต้องให้หัวหน้ากลุ่มฯ รับทราบหรือไม่
+// ตรวจสอบว่าใบลานี้ต้องให้หัวหน้ากลุ่มฯ รับทราบหรือไม่ (เวอร์ชันเก่า)
 window.shouldRequireHeadAck = function (leave, headInfo) {
     if (!leave || !headInfo) return false;
     // 1. ถ้าคนลาเป็นหัวหน้ากลุ่มฯ เอง → ข้าม
@@ -623,8 +635,8 @@ window.shouldRequireHeadAck = function (leave, headInfo) {
     // 3. ต้องมีกลุ่มสาระฯ
     const leaveDept = leave.core_personnel?.department || leave.department;
     if (!leaveDept) return false;
-    // 4. ต้องอยู่กลุ่มเดียวกัน
-    return leaveDept === headInfo.department_name;
+    // 4. ต้องอยู่กลุ่มเดียวกัน (ใช้ normalize เปรียบเทียบ)
+    return window._normalizeDeptName(leaveDept) === window._normalizeDeptName(headInfo.department_name);
 };
 
 // รับทราบใบลาในฐานะหัวหน้ากลุ่มสาระฯ (ใช้ร่วมกันทั้ง admin/dept_head)
@@ -664,7 +676,8 @@ window.acknowledgeLeaveHead = async function (id) {
             return;
         }
         const leaveDept = leave.core_personnel?.department;
-        if (leaveDept !== headInfo.department_name) {
+        // ใช้ normalize ตรวจสอบชื่อกลุ่ม
+        if (window._normalizeDeptName(leaveDept) !== window._normalizeDeptName(headInfo.department_name)) {
             Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ใช่หัวหน้ากลุ่มสาระฯ ของครูท่านนี้', 'error');
             return;
         }
@@ -702,7 +715,7 @@ window.acknowledgeLeaveHead = async function (id) {
             const { data: actualHead } = await window.db
                 .from('core_department_heads')
                 .select('personnel_id, department_name')
-                .eq('department_name', leaveDept)
+                .ilike('department_name', leaveDept.trim()) // ใช้ ilike ป้องกันช่องว่าง
                 .maybeSingle();
             if (actualHead) {
                 headPersonnelId = actualHead.personnel_id;
@@ -796,13 +809,10 @@ window.editAckDate = async function (leaveId, field) {
         (field === 'ack_academic' && leave.academic_personnel_id === currentUser.id);
 
     // ถ้าไม่ใช่ Super Admin และไม่ใช่เจ้าของ field นั้น → block
-    // (แอดมิน/รอง ตรวจสอบฝั่ง UI — เพราะ DB ไม่มีคอลัมน์ admin_personnel_id / deputy_personnel_id)
     if (!isSuperAdmin && !isOwnerOfAck) {
-        // ตรวจสอบว่า role ปัจจุบันตรงกับ field หรือไม่
         const roleFieldMap = {
             'admin': 'ack_admin',
             'deputy': 'ack_deputy'
-            // ✅ ไม่ต้องมี academic เพราะตรวจจาก academic_personnel_id แล้ว (isOwnerOfAck)
         };
         const myField = roleFieldMap[currentUserRole];
         if (myField !== field) {
@@ -916,15 +926,21 @@ window.needsAcademicAckByLeave = function (leave, allDeptHeads) {
     return window.getPersonnelCategory(leave, allDeptHeads) === 'head';
 };
 
-// ตรวจสอบว่าใบลาต้องการ ack_head ไหม (เวอร์ชันใหม่)
+// ✅ ตรวจสอบว่าใบลาต้องการ ack_head ไหม (เวอร์ชันใหม่ - แก้ไขเรื่องกลุ่มสังคมศึกษาฯ)
 window.needsHeadAckByDept = function (leave, allDeptHeads) {
     const category = window.getPersonnelCategory(leave, allDeptHeads);
     if (category !== 'teacher') return false;
 
-    const dept = leave.core_personnel?.department || leave.department;
-    if (!dept) return false;
+    const rawDept = leave.core_personnel?.department || leave.department;
+    if (!rawDept) return false;
 
-    const head = (allDeptHeads || []).find(h => h.department_name === dept);
+    // ทำความสะอาดชื่อกลุ่มก่อนเทียบ (แก้ปัญหาชื่อยาว 27 vs 28 ตัวอักษร)
+    const deptNorm = window._normalizeDeptName(rawDept);
+
+    const head = (allDeptHeads || []).find(h =>
+        window._normalizeDeptName(h.department_name) === deptNorm
+    );
+
     if (!head) return false;
 
     // ถ้าคนลาเป็นหัวหน้ากลุ่มฯ ตัวเอง → ข้าม
@@ -1011,4 +1027,4 @@ window.acknowledgeLeaveAcademic = async function (id) {
     if (typeof window.loadDashboardStats === 'function') await window.loadDashboardStats();
 };
 
-console.log('✅ leave_core.js loaded (all functions registered globally) — using RPC for holiday calculation');
+console.log('✅ leave_core.js loaded (all functions registered globally) — fixed department name matching for head ack');
