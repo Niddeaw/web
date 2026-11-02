@@ -3,6 +3,7 @@
 // ✅ initModuleSidebar + refreshNavButtons + onReady
 // ✅ NEW: WRKModuleAdmin bootstrap + sync + onSidebarRendered
 // ✅ FIX: set window.isModuleAdmin เพื่อให้ switchToAdminMode ทำงาน
+// ✅ FIX: เปลี่ยนการค้นหากลุ่มสาระฯ จาก eq เป็น ilike + trim แก้ปัญหาชื่อกลุ่มเว้นวรรคไม่ตรงกัน
 // ============================================================
 
 // 🚀 Bootstrap Module Admin
@@ -135,10 +136,12 @@ window.loadDeptHeadLeaves = async function () {
 
         if (window.isSuperAdmin) {
             if (window.currentGroupFilter) {
-                query = query.eq('core_personnel.department', window.currentGroupFilter);
+                // ✅ เปลี่ยนจาก eq เป็น ilike + trim ช่องว่าง
+                query = query.ilike('core_personnel.department', window.currentGroupFilter.trim());
             }
         } else {
-            query = query.eq('core_personnel.department', window.headInfo.department_name);
+            // ✅ เปลี่ยนจาก eq เป็น ilike + trim ช่องว่าง
+            query = query.ilike('core_personnel.department', window.headInfo.department_name.trim());
         }
 
         const { data, error } = await query;
@@ -163,7 +166,12 @@ window.loadDeptHeadLeaves = async function () {
 };
 
 window.updateStats = function (all) {
-    $('#stat-pending').text(window.pendingLeaves.length);
+    // ✅ NEW: นับเฉพาะ pending ที่ "ต้องรับทราบจริง" (ตัดกลุ่มที่ยกเว้นออก)
+    const actualPending = window.pendingLeaves.filter(l => {
+        if (typeof window.needsHeadAckByDept !== 'function') return true;
+        return window.needsHeadAckByDept(l, window.allDeptHeads || []);
+    });
+    $('#stat-pending').text(actualPending.length);
     $('#stat-done').text(window.doneLeaves.length);
     const today = new Date().toLocaleDateString('sv-SE');
     const todayCount = all.filter(l => l.start_date <= today && l.end_date >= today).length;
@@ -177,7 +185,8 @@ window.loadDepartmentTeachersCount = async function () {
             : window.headInfo.department_name;
 
         let query = db.from('core_personnel').select('id, department, position');
-        if (targetDept) query = query.eq('department', targetDept);
+        // ✅ เปลี่ยนจาก eq เป็น ilike + trim
+        if (targetDept) query = query.ilike('department', targetDept.trim());
 
         const { data, error } = await query;
         if (error) throw error;
@@ -233,7 +242,17 @@ window.renderDeptTables = function () {
         tbPending.innerHTML = window.pendingLeaves.map(l => {
             const name = `${l.core_personnel.prefix || ''}${l.core_personnel.first_name} ${l.core_personnel.last_name}`;
             const typeClass = l.type === 'ลาป่วย' ? 'text-blue-600' : (l.type === 'ลากิจส่วนตัว' ? 'text-orange-600' : 'text-rose-600');
-            return `<tr class="hover:bg-slate-50">
+            
+            // ✅ ตรวจสอบว่าต้องให้หัวหน้ารับทราบหรือไม่
+            const needsAck = window.needsHeadAckByDept 
+                ? window.needsHeadAckByDept(l, window.allDeptHeads || []) 
+                : true;
+
+            const ackActionHtml = needsAck
+                ? `<button onclick="window.acknowledgeLeaveHead('${l.id}')" class="ml-1 bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition"><i class="fas fa-user-check mr-1"></i> รับทราบ</button>`
+                : `<span class="ml-1 bg-slate-100 text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold"><i class="fas fa-minus-circle mr-1"></i> ไม่ต้องรับทราบ</span>`;
+
+            return `<tr class="hover:bg-slate-50 ${needsAck ? '' : 'bg-slate-50/40'}">
                 <td class="text-center text-slate-500 text-xs">${fmtFull(l.submitted_date || l.created_at)}</td>
                 <td class="font-bold text-slate-700">${name}</td>
                 <td class="font-bold ${typeClass} text-sm">${l.type}</td>
@@ -242,7 +261,7 @@ window.renderDeptTables = function () {
                 <td class="text-slate-600 text-xs max-w-[200px] truncate" title="${l.reason}">${l.reason}</td>
                 <td class="text-center whitespace-nowrap">
                     <button onclick="viewLeave('${l.id}')" class="btn-icon bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white" title="ดูรายละเอียด"><i class="fas fa-eye"></i></button>
-                    <button onclick="window.acknowledgeLeaveHead('${l.id}')" class="ml-1 bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition"><i class="fas fa-user-check mr-1"></i> รับทราบ</button>
+                    ${ackActionHtml}
                 </td>
             </tr>`;
         }).join('');
@@ -372,6 +391,11 @@ window.viewLeave = function (id) {
     };
     const fullName = `${l.core_personnel.prefix || ''}${l.core_personnel.first_name} ${l.core_personnel.last_name}`;
 
+    // ✅ ตรวจสอบสิทธิ์การรับทราบ
+    const needsAck = window.needsHeadAckByDept 
+        ? window.needsHeadAckByDept(l, window.allDeptHeads || []) 
+        : true;
+
     const html = `
         <div class="space-y-4">
             <div class="border border-slate-200 rounded-xl p-3 space-y-2">
@@ -385,7 +409,11 @@ window.viewLeave = function (id) {
                 ${l.attachment_file_id ? `<div class="flex justify-between"><span class="text-sm font-bold text-slate-600">ไฟล์หลักฐาน</span><a href="https://lh5.googleusercontent.com/d/${l.attachment_file_id}" target="_blank" class="text-blue-600 hover:underline text-sm">ดูไฟล์</a></div>` : ''}
                 ${l.ack_head ? `<div class="flex justify-between"><span class="text-sm font-bold text-slate-600">รับทราบเมื่อ</span><span class="text-emerald-600 text-sm font-bold">${fmtDateOnly(l.ack_head_at)}</span></div>` : ''}
             </div>
-            ${!l.ack_head ? `<button onclick="window.acknowledgeLeaveHead('${l.id}'); closeViewModal();" class="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-lg transition flex items-center justify-center gap-2"><i class="fas fa-user-check"></i> รับทราบใบลานี้</button>` : ''}
+            ${!l.ack_head ? (
+                needsAck
+                    ? `<button onclick="window.acknowledgeLeaveHead('${l.id}'); closeViewModal();" class="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-lg transition flex items-center justify-center gap-2"><i class="fas fa-user-check"></i> รับทราบใบลานี้</button>`
+                    : `<div class="w-full py-3 rounded-xl bg-slate-100 text-slate-500 font-bold text-center border border-slate-200"><i class="fas fa-info-circle mr-1"></i> กลุ่มสาระฯ นี้ไม่ต้องให้หัวหน้ารับทราบ</div>`
+            ) : ''}
         </div>
     `;
     document.getElementById('viewLeaveContent').innerHTML = html;
@@ -472,4 +500,4 @@ window.logout = async function () {
     }
 };
 
-console.log('✅ leave_dept_head.js loaded (template-compliant + nav buttons + WRKModuleAdmin + isModuleAdmin fix)');
+console.log('✅ leave_dept_head.js loaded (template-compliant + nav buttons + WRKModuleAdmin + isModuleAdmin fix + ilike matching)');

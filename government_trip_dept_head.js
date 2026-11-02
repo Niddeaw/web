@@ -1,6 +1,7 @@
 // ============================================================
 // government_trip_dept_head.js — รับทราบใบขอไปราชการ (หัวหน้ากลุ่มสาระฯ)
 // ✅ Pattern กลาง + Companion view + ฟิลด์ใหม่
+// ✅ FIX: ใช้ ilike ในการค้นหากลุ่มสาระฯ แก้ปัญหาชื่อกลุ่มเว้นวรรคไม่ตรงกัน
 // ============================================================
 
 window.currentUser = null;
@@ -129,10 +130,12 @@ window.loadTripDeptHeadRequests = async function () {
 
         if (window.isSuperAdmin) {
             if (window.currentGroupFilter) {
-                query = query.eq('core_personnel.department', window.currentGroupFilter);
+                // ✅ ใช้ ilike ในการค้นหากลุ่ม
+                query = query.ilike('core_personnel.department', window.currentGroupFilter.trim());
             }
         } else {
-            query = query.eq('core_personnel.department', window.headInfo.department_name);
+            // ✅ ใช้ ilike ในการค้นหากลุ่ม
+            query = query.ilike('core_personnel.department', window.headInfo.department_name.trim());
         }
 
         const { data, error } = await query;
@@ -170,7 +173,8 @@ window.loadTripDeptTeachersCount = async function () {
     try {
         const targetDept = window.isSuperAdmin ? window.currentGroupFilter : window.headInfo.department_name;
         let query = db.from('core_personnel').select('id, department, position');
-        if (targetDept) query = query.eq('department', targetDept);
+        // ✅ ใช้ ilike ในการค้นหากลุ่ม
+        if (targetDept) query = query.ilike('department', targetDept.trim());
         const { data, error } = await query;
         if (error) throw error;
 
@@ -530,4 +534,4 @@ window.switchTripTab = window.switchTripTab;
 window.acknowledgeTripHead = window.acknowledgeTripHead;
 window.editTripAckDate = window.editTripAckDate;
 
-console.log('✅ government_trip_dept_head.js loaded (v2.0 + Companions)');
+console.log('✅ government_trip_dept_head.js loaded (v2.0 + Companions + ilike matching)');

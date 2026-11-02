@@ -3,6 +3,16 @@
 // ============================================================
 
 // ==========================================
+// 0. Helper: ทำความสะอาดชื่อกลุ่มสาระฯ
+// ==========================================
+window._normalizeTripDeptName = function (s) {
+    return String(s || '')
+        .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '')  // ลบ zero-width และ NBSP
+        .replace(/\s+/g, ' ')                         // ยุบช่องว่างหลายช่องให้เหลือ 1 ช่อง
+        .trim();                                      // ตัดช่องว่างหัว-ท้าย
+};
+
+// ==========================================
 // 1. Format วันที่
 // ==========================================
 window.formatTripDateThai = function (isoString) {
@@ -128,9 +138,16 @@ window.getTripPersonnelCategory = function (trip, allDeptHeads) {
 window.needsTripHeadAckByDept = function (trip, allDeptHeads) {
     const category = window.getTripPersonnelCategory(trip, allDeptHeads);
     if (category !== 'teacher') return false;
-    const dept = trip.core_personnel?.department || trip.department;
-    if (!dept) return false;
-    const head = (allDeptHeads || []).find(h => h.department_name === dept);
+    
+    const rawDept = trip.core_personnel?.department || trip.department;
+    if (!rawDept) return false;
+    
+    // ✅ ใช้ normalize ในการเทียบชื่อกลุ่ม
+    const deptNorm = window._normalizeTripDeptName(rawDept);
+    const head = (allDeptHeads || []).find(h => 
+        window._normalizeTripDeptName(h.department_name) === deptNorm
+    );
+    
     if (!head) return false;
     if (head.personnel_id === trip.personnel_id) return false;
     return true;
@@ -191,7 +208,8 @@ window.acknowledgeTripHead = async function (id) {
             Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ใช่หัวหน้ากลุ่มสาระฯ', 'error'); return;
         }
         const tripDept = trip.core_personnel?.department;
-        if (tripDept !== headInfo.department_name) {
+        // ✅ ใช้ normalize ตรวจสอบสิทธิ์
+        if (window._normalizeTripDeptName(tripDept) !== window._normalizeTripDeptName(headInfo.department_name)) {
             Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ใช่หัวหน้ากลุ่มสาระฯ ของครูท่านนี้', 'error'); return;
         }
         if (trip.personnel_id === currentUser.id) {
@@ -221,7 +239,7 @@ window.acknowledgeTripHead = async function (id) {
             const { data: actualHead } = await window.db
                 .from('core_department_heads')
                 .select('personnel_id, department_name')
-                .eq('department_name', tripDept)
+                .ilike('department_name', tripDept.trim()) // ✅ ใช้ ilike
                 .maybeSingle();
             if (actualHead) {
                 headPersonnelId = actualHead.personnel_id;
@@ -424,14 +442,14 @@ window.generateTripPDF = async function (id, systemSettings) {
         let headName = '';
         const { data: headInfo } = await db.from('core_department_heads')
             .select('core_personnel!inner(prefix, first_name, last_name)')
-            .eq('department_name', p.department)
+            .ilike('department_name', p.department.trim()) // ✅ ใช้ ilike ป้องกันชื่อเพี้ยน
             .maybeSingle();
         if (headInfo?.core_personnel) {
             const h = headInfo.core_personnel;
             headName = `${h.prefix || ''}${h.first_name} ${h.last_name}`;
         }
 
-                const thMonths = window.getTripThaiMonths();
+        const thMonths = window.getTripThaiMonths();
         const sDate = new Date(trip.start_date);
         const eDate = new Date(trip.end_date);
         const writeDate = trip.submitted_date ? new Date(trip.submitted_date) : new Date(trip.created_at);
@@ -797,4 +815,4 @@ window.buildCompanionsHtml = function (companions) {
     return html;
 };
 
-console.log('✅ government_trip_core.js loaded (ฉบับสมบูรณ์ + academic ack)');
+console.log('✅ government_trip_core.js loaded (ฉบับสมบูรณ์ + academic ack + normalize dept)');
