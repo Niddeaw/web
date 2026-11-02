@@ -990,11 +990,12 @@ async function loadAdminBookings() {
                 <td class="py-2 px-3 text-center">${getStatusBadge(r.status)}</td>
                 <td class="py-2 px-3 text-center whitespace-nowrap">
                     ${r.status === 'pending' ? `
-                        <button onclick="updateBookingStatus('${r.id}', 'approved')" class="text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded font-bold text-xs shadow-sm"><i class="fa-solid fa-check"></i> อนุมัติ</button>
-                        <button onclick="rejectBooking('${r.id}')" class="text-rose-600 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded font-bold text-xs shadow-sm"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
-                    ` : `
-                        <button onclick="deleteBooking('${r.id}', false)" class="text-slate-400 hover:text-rose-600 px-2 py-1 transition-colors" title="ลบรายการ"><i class="fa-solid fa-trash"></i></button>
-                    `}
+                        <button onclick="updateBookingStatus('${r.id}', 'approved')" class="text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2 py-1.5 rounded-lg font-bold text-xs shadow-sm mr-1 transition" title="อนุมัติ"><i class="fa-solid fa-check"></i> อนุมัติ</button>
+                        <button onclick="rejectBooking('${r.id}')" class="text-rose-600 bg-rose-50 hover:bg-rose-100 px-2 py-1.5 rounded-lg font-bold text-xs shadow-sm mr-1 transition" title="ปฏิเสธ"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
+                    ` : ''}
+                    
+                    <!-- ✅ ปุ่มลบ แสดงตลอดเวลา (สำหรับ Admin) -->
+                    <button onclick="deleteBooking('${r.id}', false)" class="text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 px-2 py-1.5 rounded-lg text-xs font-bold shadow-sm transition" title="ลบรายการถาวร"><i class="fa-solid fa-trash"></i> ลบ</button>
                 </td>
             </tr>
         `).join('');
