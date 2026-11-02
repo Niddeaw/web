@@ -28,6 +28,7 @@ const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'
 let currentUser = null;
 let actualRole = '';
 let isSuperAdmin = false;
+let isViewer = false;
 let isTeacher = false;
 let viewingTeacherId = null;
 let allTeachers = [];
@@ -48,13 +49,11 @@ function formatLocation(grade, room, teachRoom) {
     let loc = '';
     const gStr = String(grade).trim();
     
-    // ตรวจสอบว่าเป็นตัวเลข 1-6 หรือไม่
     if (/^[1-6]$/.test(gStr)) {
         loc = `ม.${gStr}/${room || ''}`;
     } else if (gStr === 'กลุ่ม') {
         loc = room ? `กลุ่ม ${room}` : 'กลุ่ม';
     } else {
-        // กรณี ม.ต้น, ม.ปลาย
         loc = room ? `${gStr}/${room}` : gStr;
     }
 
@@ -69,16 +68,23 @@ function formatLocation(grade, room, teachRoom) {
 // =======================================================
 $(document).ready(async () => {
     try {
-        const session = await checkSessionAndRole('ตารางสอน', ['super_admin', 'admin', 'teacher']);
+        // ✅ เพิ่ม director และ deputy ให้เข้ามาดูได้
+        const session = await checkSessionAndRole('ตารางสอน', ['super_admin', 'admin', 'director', 'deputy', 'teacher']);
         if (!session) return;
 
         currentUser = session.personnel;
         actualRole = session.role;
-        isSuperAdmin = WRK_ROLES.ADMIN.includes(actualRole);
+        
+        const adminRoles = ['super_admin', 'admin'];
+        const viewerRoles = ['director', 'deputy'];
+        
+        isSuperAdmin = adminRoles.includes(actualRole);
+        isViewer = viewerRoles.includes(actualRole);
         isTeacher = actualRole === 'teacher';
 
-        if (!isSuperAdmin && !isTeacher) {
-            await Swal.fire('ไม่มีสิทธิ์', 'ระบบนี้ใช้ได้เฉพาะครูผู้สอน และผู้ดูแลระบบ', 'error');
+        // ถ้าไม่ใช่ครู, แอดมิน, หรือผู้บริหาร ให้เด้งออก
+        if (!isSuperAdmin && !isViewer && !isTeacher) {
+            await Swal.fire('ไม่มีสิทธิ์', 'ระบบนี้ใช้ได้เฉพาะครูผู้สอน และผู้บริหาร', 'error');
             window.location.href = 'index.html';
             return;
         }
@@ -89,9 +95,15 @@ $(document).ready(async () => {
 
         viewingTeacherId = currentUser.id;
 
-        if (isSuperAdmin) {
+        // ถ้าเป็นแอดมินหรือผู้บริหาร ให้แสดงแผงเลือกครู
+        if (isSuperAdmin || isViewer) {
             document.getElementById('admin-teacher-panel').classList.remove('hidden');
             await loadAllTeachers();
+        }
+
+        // ถ้าเป็นผู้บริหาร (Director/Deputy) ให้ล็อกโหมด Read-Only
+        if (isViewer) {
+            applyReadOnlyMode();
         }
 
         await loadSettings();
@@ -101,7 +113,7 @@ $(document).ready(async () => {
         updateRoomFilter();
         updateSummaryBadge();
 
-        // startNotificationTimer();
+        // startNotificationTimer(); // ปิดไว้ใช้ Server-side แทน
         console.log('✅ Schedule module ready');
     } catch (err) {
         console.error('Init error:', err);
@@ -112,7 +124,7 @@ $(document).ready(async () => {
 });
 
 // =======================================================
-// ADMIN: Load All Teachers
+// ADMIN: Load All Teachers & Dashboard
 // =======================================================
 async function loadAllTeachers() {
     const { data, error } = await db.from('core_personnel')
@@ -130,13 +142,150 @@ async function loadAllTeachers() {
 
     sel.addEventListener('change', async () => {
         viewingTeacherId = sel.value;
-        isReadOnlyMode = false;
+        
+        // ✅ ถ้าเป็น Viewer ให้ล็อกโหมดแก้ไข
+        if (isViewer) {
+            isReadOnlyMode = true;
+        } else {
+            isReadOnlyMode = false;
+        }
+        
         await loadAllData();
         renderGrid();
         renderPalette();
         updateRoomFilter();
         updateSummaryBadge();
     });
+}
+
+// ฟังก์ชันสำหรับล็อกโหมด Read-Only
+function applyReadOnlyMode() {
+    isReadOnlyMode = true;
+    
+    // ซ่อนปุ่มที่ใช้แก้ไข
+    const btnSave = document.getElementById('btn-save-all');
+    const btnClear = document.getElementById('btn-clear');
+    const btnAdd = document.getElementById('btn-add-subject');
+    const btnNotif = document.getElementById('btn-notif');
+    
+    if (btnSave) btnSave.style.display = 'none';
+    if (btnClear) btnClear.style.display = 'none';
+    if (btnAdd) btnAdd.style.display = 'none';
+    if (btnNotif) btnNotif.style.display = 'none';
+
+    // แสดงข้อความแจ้งเตือนที่ด้านบน
+    const alertHtml = `
+        <div class="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl flex items-center justify-center gap-2 mb-4 shadow-sm w-full max-w-2xl mx-auto">
+            <i class="fas fa-eye text-amber-600 text-lg"></i>
+            <span class="font-bold">คุณอยู่ในโหมดดูข้อมูล (Read-Only) ไม่สามารถแก้ไขตารางสอนได้</span>
+        </div>
+    `;
+    const toolbar = document.querySelector('.glass-panel.p-3.sm\\:p-4');
+    if (toolbar) toolbar.insertAdjacentHTML('beforebegin', alertHtml);
+}
+
+async function openAdminDashboard() {
+    Swal.fire({ title: 'กำลังดึงข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    try {
+        const { data: teachers } = await db.from('core_personnel')
+            .select('id, prefix, first_name, last_name, department')
+            .in('role', ['teacher'])
+            .order('first_name');
+
+        const { data: subjects } = await db.from('module_schedule_subjects').select('teacher_id');
+        const { data: slots } = await db.from('module_schedule_slots').select('teacher_id');
+
+        const stats = teachers.map(t => {
+            const teacherSubjects = subjects.filter(s => s.teacher_id === t.id).length;
+            const teacherSlots = slots.filter(s => s.teacher_id === t.id).length;
+            return {
+                ...t,
+                subjectCount: teacherSubjects,
+                slotCount: teacherSlots,
+                status: teacherSlots > 0 ? 'ready' : 'empty'
+            };
+        });
+
+        // เรียงลำดับ: คนที่ยังไม่ทำขึ้นก่อน
+        stats.sort((a, b) => a.slotCount - b.slotCount);
+
+        const totalTeachers = stats.length;
+        const doneTeachers = stats.filter(s => s.status === 'ready').length;
+        const pendingTeachers = totalTeachers - doneTeachers;
+
+        let html = `
+        <div class="text-left">
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl text-center">
+                    <p class="text-xs font-bold text-blue-600">ครูทั้งหมด</p>
+                    <p class="text-2xl font-black text-blue-800">${totalTeachers}</p>
+                </div>
+                <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-center">
+                    <p class="text-xs font-bold text-emerald-600">จัดตารางแล้ว</p>
+                    <p class="text-2xl font-black text-emerald-800">${doneTeachers}</p>
+                </div>
+                <div class="bg-rose-50 border border-rose-200 p-3 rounded-xl text-center">
+                    <p class="text-xs font-bold text-rose-600">ยังไม่จัดตาราง</p>
+                    <p class="text-2xl font-black text-rose-800">${pendingTeachers}</p>
+                </div>
+            </div>
+
+            <div class="max-h-[50vh] overflow-y-auto rounded-xl border border-slate-200">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 sticky top-0 border-b border-slate-200 shadow-sm z-10">
+                        <tr>
+                            <th class="p-3 text-left">ชื่อครู</th>
+                            <th class="p-3 text-center">วิชา</th>
+                            <th class="p-3 text-center">คาบที่วาง</th>
+                            <th class="p-3 text-center">สถานะ</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+        `;
+
+        stats.forEach(s => {
+            const name = `${s.prefix || ''}${s.first_name} ${s.last_name}`;
+            const badge = s.status === 'ready' 
+                ? '<span class="px-2 py-1 text-[10px] font-bold rounded bg-emerald-100 text-emerald-700">พร้อมสอน</span>'
+                : '<span class="px-2 py-1 text-[10px] font-bold rounded bg-rose-100 text-rose-700">ว่างเปล่า</span>';
+            
+            html += `
+                <tr class="hover:bg-slate-50 cursor-pointer transition-colors" onclick="Swal.close(); selectTeacherFromDashboard('${s.id}')">
+                    <td class="p-3">
+                        <div class="font-bold text-slate-800">${name}</div>
+                        <div class="text-[10px] text-slate-400">${s.department || '-'}</div>
+                    </td>
+                    <td class="p-3 text-center font-bold text-blue-600">${s.subjectCount}</td>
+                    <td class="p-3 text-center font-bold text-indigo-600">${s.slotCount}</td>
+                    <td class="p-3 text-center">${badge}</td>
+                </tr>
+            `;
+        });
+
+        html += `</tbody></table></div></div>`;
+        Swal.close();
+
+        Swal.fire({
+            title: '<i class="fas fa-chart-pie text-indigo-600 mr-2"></i> ภาพรวมตารางสอนทั้งโรงเรียน',
+            html: html,
+            width: 700,
+            showCloseButton: true,
+            showConfirmButton: false,
+        });
+
+    } catch (err) {
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+async function selectTeacherFromDashboard(teacherId) {
+    const sel = document.getElementById('admin-teacher-select');
+    if (sel) {
+        sel.value = teacherId;
+        sel.dispatchEvent(new Event('change'));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 }
 
 // =======================================================
@@ -174,7 +323,7 @@ async function loadSettings() {
 }
 
 // =======================================================
-// Render Grid (Horizontal Periods)
+// Render Grid
 // =======================================================
 function renderGrid() {
     const grid = document.getElementById('schedule-grid');
@@ -203,15 +352,17 @@ function renderGrid() {
                 const fullLoc = formatLocation(subject.grade_level, subject.room_number, subject.teaching_room);
                 
                 if (currentRoomFilter !== 'all' && roomLabel !== currentRoomFilter) {
-                    // ช่องของห้องอื่น (ถ้าใช้ตัวกรอง)
-                    html += `<div class="grid-cell" data-day="${d.no}" data-period="${p.no}" ondragover="onCellDragOver(event)" ondragleave="onCellDragLeave(event)" ondrop="onCellDrop(event)" onclick="onEmptyCellClick(event)">
+                    // ช่องของห้องอื่น
+                    html += `<div class="grid-cell" data-day="${d.no}" data-period="${p.no}">
                         <div style="opacity:.35;text-align:center;font-size:10px;color:#94a3b8;padding-top:20px;">
                             <i class="fas fa-lock"></i><br>${roomLabel}
                         </div>
                     </div>`;
                 } else {
                     // ช่องที่มีวิชา
-                    html += `<div class="grid-cell has-slot" data-day="${d.no}" data-period="${p.no}" style="background:${subject.color};border-color:${subject.color};" onclick="removeSlot('${slot.id}', event)">
+                    const clickAttr = isReadOnlyMode ? '' : `onclick="removeSlot('${slot.id}', event)"`;
+                    const cursorStyle = isReadOnlyMode ? 'cursor:default;' : 'cursor:pointer;';
+                    html += `<div class="grid-cell has-slot" data-day="${d.no}" data-period="${p.no}" style="background:${subject.color};border-color:${subject.color};${cursorStyle}" ${clickAttr}>
                         <div class="slot-block" title="${escapeHtml(subject.subject_name)}\nสถานที่: ${fullLoc}">
                             <div class="subj-code">${escapeHtml(subject.subject_code)}</div>
                             <div class="subj-name">${escapeHtml(subject.subject_name)}</div>
@@ -221,7 +372,8 @@ function renderGrid() {
                 }
             } else {
                 // ช่องว่าง
-                html += `<div class="grid-cell" data-day="${d.no}" data-period="${p.no}" ondragover="onCellDragOver(event)" ondragleave="onCellDragLeave(event)" ondrop="onCellDrop(event)" onclick="onEmptyCellClick(event)"></div>`;
+                const dragAttrs = isReadOnlyMode ? '' : `ondragover="onCellDragOver(event)" ondragleave="onCellDragLeave(event)" ondrop="onCellDrop(event)" onclick="onEmptyCellClick(event)"`;
+                html += `<div class="grid-cell" data-day="${d.no}" data-period="${p.no}" ${dragAttrs}></div>`;
             }
         });
     });
@@ -238,7 +390,7 @@ function renderPalette() {
         palette.innerHTML = `<div class="text-center text-slate-400 py-10">
             <i class="fas fa-book-open text-3xl mb-2 text-slate-300"></i>
             <p class="text-xs font-bold">ยังไม่มีรายวิชา</p>
-            <p class="text-[10px] mt-1">กดปุ่ม <b>+</b> เพื่อเพิ่มวิชาแรก</p>
+            ${!isReadOnlyMode ? `<p class="text-[10px] mt-1">กดปุ่ม <b>+</b> เพื่อเพิ่มวิชาแรก</p>` : ''}
         </div>`;
         return;
     }
@@ -258,10 +410,24 @@ function renderPalette() {
         const fullLoc = formatLocation(s.grade_level, s.room_number, s.teaching_room);
         const isSelected = selectedSubjectId === s.id;
         
-        return `<div class="subj-card ${isUsedUp ? 'used-up' : ''} ${isSelected ? 'selected' : ''}"
-                     draggable="${!isUsedUp}" data-subject-id="${s.id}"
-                     ondragstart="onSubjectDragStart(event)" ondragend="onSubjectDragEnd(event)"
-                     onclick="selectSubject('${s.id}', event)">
+        // ถ้า Read-Only ให้ปิด Drag
+        const draggableAttr = isReadOnlyMode ? 'draggable="false"' : `draggable="${!isUsedUp}"`;
+        const dragStartAttr = isReadOnlyMode ? '' : `ondragstart="onSubjectDragStart(event)" ondragend="onSubjectDragEnd(event)"`;
+        const clickAttr = isReadOnlyMode ? '' : `onclick="selectSubject('${s.id}', event)"`;
+        
+        // ซ่อนปุ่ม Action ถ้า Read-Only
+        const actionButtons = isReadOnlyMode ? '' : `
+            <div class="actions" onclick="event.stopPropagation()">
+                <button onclick="copySubjectToRooms('${s.id}', event)" class="bg-blue-50 text-blue-600 hover:bg-blue-100" title="คัดลอกไปห้องอื่น"><i class="fas fa-copy"></i></button>
+                <button onclick="editSubject('${s.id}')" class="bg-amber-50 text-amber-600 hover:bg-amber-100" title="แก้ไข"><i class="fas fa-pen"></i></button>
+                <button onclick="deleteSubject('${s.id}')" class="bg-rose-50 text-rose-600 hover:bg-rose-100" title="ลบ"><i class="fas fa-trash"></i></button>
+            </div>
+        `;
+
+        return `<div class="subj-card ${isUsedUp && !isReadOnlyMode ? 'used-up' : ''} ${isSelected ? 'selected' : ''}"
+                     ${draggableAttr} data-subject-id="${s.id}"
+                     ${dragStartAttr}
+                     ${clickAttr}>
             <div class="color-bar" style="background:${s.color};"></div>
             <div class="info">
                 <div class="code">${escapeHtml(s.subject_code)}</div>
@@ -273,11 +439,7 @@ function renderPalette() {
                     </span>
                 </div>
             </div>
-            <div class="actions" onclick="event.stopPropagation()">
-                <button onclick="copySubjectToRooms('${s.id}', event)" class="bg-blue-50 text-blue-600 hover:bg-blue-100" title="คัดลอกไปห้องอื่น"><i class="fas fa-copy"></i></button>
-                <button onclick="editSubject('${s.id}')" class="bg-amber-50 text-amber-600 hover:bg-amber-100" title="แก้ไข"><i class="fas fa-pen"></i></button>
-                <button onclick="deleteSubject('${s.id}')" class="bg-rose-50 text-rose-600 hover:bg-rose-100" title="ลบ"><i class="fas fa-trash"></i></button>
-            </div>
+            ${actionButtons}
         </div>`;
     }).join('');
 }
@@ -287,7 +449,6 @@ function renderPalette() {
 // =======================================================
 function updateRoomFilter() {
     const sel = document.getElementById('room-filter');
-    // ใช้ formatLocation ในการดึงชื่อห้อง เพื่อให้แสดงผลได้ถูกต้อง (เช่น กลุ่ม บริหารวิชาการ)
     const rooms = [...new Set(subjects.map(s => formatLocation(s.grade_level, s.room_number, '')))].sort();
     
     sel.innerHTML = `<option value="all">ทุกห้อง / กลุ่ม</option>` +
@@ -316,6 +477,7 @@ function updateSummaryBadge() {
 let draggingSubjectId = null;
 
 function onSubjectDragStart(e) {
+    if (isReadOnlyMode) { e.preventDefault(); return; }
     const card = e.target.closest('.subj-card');
     if (!card) return;
     const id = card.dataset.subjectId;
@@ -338,7 +500,7 @@ function onSubjectDragEnd(e) {
 }
 
 function onCellDragOver(e) {
-    if (!draggingSubjectId) return;
+    if (isReadOnlyMode || !draggingSubjectId) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
     e.currentTarget.classList.add('drag-over');
@@ -350,6 +512,7 @@ function onCellDragLeave(e) {
 
 async function onCellDrop(e) {
     e.preventDefault();
+    if (isReadOnlyMode) return;
     const cell = e.currentTarget;
     cell.classList.remove('drag-over');
     const subjectId = e.dataTransfer.getData('text/plain') || draggingSubjectId;
@@ -363,6 +526,7 @@ async function onCellDrop(e) {
 // Click-to-Place
 // =======================================================
 function selectSubject(id, event) {
+    if (isReadOnlyMode) return;
     if (event) event.stopPropagation();
     const subject = subjects.find(s => s.id === id);
     if (!subject) return;
@@ -375,7 +539,7 @@ function selectSubject(id, event) {
 }
 
 async function onEmptyCellClick(e) {
-    if (!selectedSubjectId) return;
+    if (isReadOnlyMode || !selectedSubjectId) return;
     const cell = e.currentTarget;
     if (cell.classList.contains('has-slot')) return;
     const day = parseInt(cell.dataset.day);
@@ -389,6 +553,7 @@ async function onEmptyCellClick(e) {
 // Place / Remove Slot
 // =======================================================
 async function placeSlot(subjectId, day, period) {
+    if (isReadOnlyMode) return;
     const subject = subjects.find(s => s.id === subjectId);
     if (!subject) return;
 
@@ -423,6 +588,7 @@ async function placeSlot(subjectId, day, period) {
 }
 
 async function removeSlot(slotId, event) {
+    if (isReadOnlyMode) return;
     if (event) event.stopPropagation();
     const slot = slots.find(s => s.id === slotId);
     if (!slot) return;
@@ -454,6 +620,7 @@ async function removeSlot(slotId, event) {
 // Subject CRUD
 // =======================================================
 function openAddSubjectModal() {
+    if (isReadOnlyMode) return;
     document.getElementById('subject-form').reset();
     document.getElementById('subj-id').value = '';
     document.getElementById('subj-color').value = COLORS[Math.floor(Math.random() * COLORS.length)];
@@ -468,6 +635,7 @@ function closeSubjectModal() {
 
 async function saveSubject(e) {
     e.preventDefault();
+    if (isReadOnlyMode) return;
     const id = document.getElementById('subj-id').value;
     const data = {
         teacher_id: viewingTeacherId,
@@ -504,6 +672,7 @@ async function saveSubject(e) {
 }
 
 async function editSubject(id) {
+    if (isReadOnlyMode) return;
     const s = subjects.find(x => x.id === id);
     if (!s) return;
     document.getElementById('subj-id').value = s.id;
@@ -520,6 +689,7 @@ async function editSubject(id) {
 }
 
 async function deleteSubject(id) {
+    if (isReadOnlyMode) return;
     const s = subjects.find(x => x.id === id);
     if (!s) return;
     const usedCount = slots.filter(sl => sl.subject_id === id).length;
@@ -547,9 +717,10 @@ async function deleteSubject(id) {
 }
 
 // =======================================================
-// 📄 COPY SUBJECT TO MULTIPLE ROOMS (คัดลอกวิชาไปห้องอื่น)
+// 📄 COPY SUBJECT TO MULTIPLE ROOMS
 // =======================================================
 async function copySubjectToRooms(id, event) {
+    if (isReadOnlyMode) return;
     if (event) event.stopPropagation();
     const s = subjects.find(x => x.id === id);
     if (!s) return;
@@ -634,6 +805,7 @@ async function copySubjectToRooms(id, event) {
 // Save / Clear / Validate
 // =======================================================
 async function saveAll() {
+    if (isReadOnlyMode) return;
     updateSummaryBadge();
     Swal.fire({
         icon: 'success',
@@ -648,6 +820,7 @@ async function saveAll() {
 }
 
 async function clearSchedule() {
+    if (isReadOnlyMode) return;
     if (!slots.length) return Swal.fire('ไม่มีข้อมูล', 'ตารางว่างอยู่แล้ว', 'info');
     const { isConfirmed } = await Swal.fire({
         icon: 'warning',
@@ -728,6 +901,7 @@ function validateSchedule() {
 // Notification Settings Modal
 // =======================================================
 function openNotificationSettings() {
+    if (isReadOnlyMode) return;
     if (!settings) settings = {};
     document.getElementById('notif-enabled').checked = !!settings.notifications_enabled;
     document.getElementById('notif-token').value = settings.telegram_bot_token || '';
@@ -743,6 +917,7 @@ function closeNotificationSettings() {
 }
 
 async function saveNotificationSettings() {
+    if (isReadOnlyMode) return;
     const payload = {
         teacher_id: currentUser.id,
         notifications_enabled: document.getElementById('notif-enabled').checked,
@@ -764,6 +939,7 @@ async function saveNotificationSettings() {
 }
 
 async function testNotification() {
+    if (isReadOnlyMode) return;
     const token = document.getElementById('notif-token').value.trim();
     const chat = document.getElementById('notif-chat').value.trim();
     if (!token || !chat) {
@@ -806,7 +982,7 @@ async function sendTelegram(token, chatId, text) {
 }
 
 // =======================================================
-// Notification Timer
+// Notification Timer (ปิดไว้ใช้ Server-side แทน)
 // =======================================================
 function startNotificationTimer() {
     if (notifTimer) clearInterval(notifTimer);
@@ -998,7 +1174,6 @@ async function exportExcel() {
 // 🖨️ Helper: สร้าง HTML สำหรับรายงาน (ใช้ร่วมกันทั้ง PDF และ Print)
 // =======================================================
 async function buildScheduleReportHtml() {
-    // 1. ดึงข้อมูลโรงเรียนและภาคเรียน (Fallback ไว้หาก DB ไม่มีข้อมูล)
     let schoolName = 'โรงเรียนวัดไร่ขิงวิทยา';
     let logoUrl = 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
     let semester = '1';
@@ -1016,17 +1191,14 @@ async function buildScheduleReportHtml() {
         console.warn('ไม่สามารถดึงข้อมูลโรงเรียนได้ ใช้ค่าเริ่มต้นแทน', err);
     }
 
-    // 2. ข้อมูลครูและกลุ่มสาระ
     const teacher = allTeachers.find(x => x.id === viewingTeacherId) || currentUser || {};
     const teacherName = `${teacher.prefix || ''}${teacher.first_name || ''} ${teacher.last_name || ''}`.trim() || 'ครูผู้สอน';
     const teacherDept = teacher.department ? ` (${teacher.department})` : '';
 
-    // แปลงปีการศึกษาเป็น พ.ศ. (ถ้าฐานข้อมูลเก็บเป็น ค.ศ.)
     const thaiYear = isNaN(academicYear) ? academicYear : String(Number(academicYear) + (Number(academicYear) > 2500 ? 0 : 543));
 
     const today = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
 
-    // 3. สร้างหัวตารางและแถวข้อมูล
     let tableHeaders = `<th style="width:8%;">วัน / คาบ</th>`;
     PERIODS.forEach(p => {
         tableHeaders += `<th style="width:10%;"><div>คาบ ${p.no}</div><div style="font-size:8px;font-weight:normal;">${p.start}-${p.end}</div></th>`;
@@ -1059,7 +1231,6 @@ async function buildScheduleReportHtml() {
         </tr>`;
     }).join('');
 
-    // 4. ประกอบ HTML
     const htmlContent = `<!DOCTYPE html>
     <html><head><meta charset="UTF-8"><style>
         * { margin:0; padding:0; box-sizing:border-box; }
@@ -1073,7 +1244,6 @@ async function buildScheduleReportHtml() {
         th { background:#e0e7ff; padding:6px 4px; font-size:10px; color:#3730a3; border:1px solid #cbd5e1; }
         .footer { margin-top:15px; font-size:10px; color:#64748b; text-align:right; }
         
-        /* ✅ CSS สำหรับการพิมพ์ */
         @media print {
             body { padding: 0; }
             @page { size: landscape; margin: 10mm; }
@@ -1127,7 +1297,7 @@ async function exportPDF() {
 }
 
 // =======================================================
-// Print (ปรับให้ใช้ Template เดียวกับ PDF)
+// Print
 // =======================================================
 async function printSchedule() {
     Swal.fire({ title: 'กำลังจัดเตรียมเอกสาร...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
@@ -1141,7 +1311,6 @@ async function printSchedule() {
         printWindow.document.write(htmlContent);
         printWindow.document.close();
         
-        // รอให้รูปภาพโหลดเสร็จก่อนเปิดหน้าต่าง Print
         printWindow.onload = () => {
             setTimeout(() => {
                 printWindow.focus();
@@ -1215,5 +1384,7 @@ window.testNotification = testNotification;
 window.exportExcel = exportExcel;
 window.exportPDF = exportPDF;
 window.printSchedule = printSchedule;
+window.openAdminDashboard = openAdminDashboard;
+window.selectTeacherFromDashboard = selectTeacherFromDashboard;
 
-console.log('✅ schedule.js loaded (Version: Full + Teaching Room + Custom Grade + Beautiful PDF + Unified Print)');
+console.log('✅ schedule.js loaded (Version: Full + Admin Dashboard + ReadOnly Mode)');

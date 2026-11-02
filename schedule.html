@@ -14,18 +14,13 @@
         /* =======================================================
            📅 Custom Schedule Styles (Horizontal Periods)
            ======================================================= */
-        
-        /* Grid Container */
         .schedule-grid {
             display: grid;
-            /* 1 คอลัมน์สำหรับวัน + 9 คอลัมน์สำหรับคาบเรียน */
             grid-template-columns: 80px repeat(9, minmax(115px, 1fr));
             gap: 4px;
-            min-width: 1100px; /* บังคับความกว้างขั้นต่ำเพื่อให้ 9 คาบพอดี */
+            min-width: 1100px;
             padding-bottom: 8px;
         }
-
-        /* หัวตาราง (มุมซ้ายบน / คาบเรียน) */
         .schedule-grid .grid-header {
             background: linear-gradient(135deg, #4f46e5, #6366f1);
             color: #fff;
@@ -39,8 +34,6 @@
             justify-content: center;
             box-shadow: 0 2px 5px rgba(99, 102, 241, 0.2);
         }
-
-        /* ป้ายชื่อวัน (แนวตั้ง) */
         .schedule-grid .day-label {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
@@ -56,8 +49,6 @@
             align-items: center;
             gap: 2px;
         }
-
-        /* ช่องตาราง */
         .grid-cell {
             min-height: 80px;
             background: #fff;
@@ -70,8 +61,6 @@
             display: flex;
             flex-direction: column;
         }
-
-        /* เมื่อลากวิชามา hover */
         .grid-cell.drag-over {
             background: #eff6ff;
             border-color: #3b82f6;
@@ -79,13 +68,11 @@
             box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
             z-index: 10;
         }
-
-        /* ช่องที่มีวิชาแล้ว */
         .grid-cell.has-slot {
             border-style: solid;
             border-width: 1px;
             cursor: pointer;
-            padding: 0; /* ให้สีพื้นหลังเต็มช่อง */
+            padding: 0;
             overflow: hidden;
         }
         .grid-cell.has-slot:hover {
@@ -94,8 +81,6 @@
             box-shadow: 0 6px 15px rgba(0,0,0,0.1);
             z-index: 5;
         }
-
-        /* กล่องข้อความในช่อง */
         .slot-block {
             display: flex;
             flex-direction: column;
@@ -108,15 +93,8 @@
         }
         .slot-block .subj-code { font-weight: 800; font-size: 13px; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
         .slot-block .subj-name { font-weight: 600; text-shadow: 0 1px 1px rgba(0,0,0,0.1); }
-        .slot-block .subj-room { 
-            font-size: 10px; 
-            opacity: 0.95; 
-            margin-top: 2px; 
-            /* ✅ เพิ่ม 3 บรรทัดนี้ เพื่อให้ข้อความห้องยาวๆ ตัดขึ้นบรรทัดใหม่หรือแสดง ... */
-            white-space: nowrap; 
-            overflow: hidden; 
-            text-overflow: ellipsis; 
-        }
+        .slot-block .subj-room { font-size: 10px; opacity: 0.95; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
         /* =======================================================
            📚 Palette (รายวิชา)
            ======================================================= */
@@ -135,7 +113,6 @@
         }
         .subj-card:hover { border-color: #6366f1; box-shadow: 0 4px 12px rgba(99,102,241,.12); transform: translateY(-1px); }
         .subj-card.dragging { opacity: 0.4; cursor: grabbing; transform: scale(0.98); }
-        
         .subj-card.used-up { opacity: 0.6; cursor: not-allowed; background: #f8fafc; }
         .subj-card.used-up:hover { transform: none; box-shadow: none; border-color: #e2e8f0; }
         
@@ -147,7 +124,6 @@
         
         .subj-card .actions { display: flex; flex-direction: column; gap: 4px; justify-content: center; }
         .subj-card .actions button { width: 26px; height: 26px; border-radius: 6px; font-size: 11px; transition: all .15s; display: flex; align-items: center; justify-content: center; }
-        
         .subj-card.selected { border-color: #6366f1; background: #eef2ff; box-shadow: 0 0 0 2px #c7d2fe; }
 
         /* =======================================================
@@ -169,13 +145,11 @@
         .sc-btn.slate  { background: #64748b; color: #fff; box-shadow: 0 3px 10px rgba(100,116,139,.25); }
         .sc-btn.purple { background: #8b5cf6; color: #fff; box-shadow: 0 3px 10px rgba(139,92,246,.25); }
 
-        /* Custom Scrollbar */
         .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scroll::-webkit-scrollbar-track { background: transparent; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-        /* Responsive */
         @media (max-width: 1200px) {
             .schedule-grid { grid-template-columns: 70px repeat(9, minmax(100px, 1fr)); min-width: 1000px; }
         }
@@ -204,7 +178,7 @@
 
                 <!-- ================= Admin: Teacher Selector ================= -->
                 <div id="admin-teacher-panel" class="hidden glass-panel p-4 rounded-2xl shadow-sm border border-purple-200 bg-purple-50/50">
-                    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div class="flex flex-col xl:flex-row xl:items-center gap-3">
                         <div class="flex items-center gap-2 flex-shrink-0">
                             <div class="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md">
                                 <i class="fas fa-user-shield text-lg"></i>
@@ -214,9 +188,15 @@
                                 <p class="text-[11px] text-purple-600">ดู/แก้ไขตารางสอนของครูทุกคน</p>
                             </div>
                         </div>
-                        <div class="flex-1 sm:ml-4">
-                            <label class="block text-[11px] font-bold text-purple-700 uppercase tracking-wider mb-1">เลือกครูที่ต้องการจัดการ</label>
-                            <select id="admin-teacher-select" class="w-full px-4 py-2 rounded-xl border border-purple-300 bg-white text-sm font-bold text-purple-900 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all shadow-sm"></select>
+                        <div class="flex-1 sm:ml-4 flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
+                            <div class="flex-1">
+                                <label class="block text-[11px] font-bold text-purple-700 uppercase tracking-wider mb-1">เลือกครูที่ต้องการจัดการ</label>
+                                <select id="admin-teacher-select" class="w-full px-4 py-2 rounded-xl border border-purple-300 bg-white text-sm font-bold text-purple-900 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all shadow-sm"></select>
+                            </div>
+                            <!-- ✅ ปุ่มดู Dashboard ภาพรวม -->
+                            <button onclick="openAdminDashboard()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-sm transition-all flex-shrink-0 h-[38px] flex items-center justify-center">
+                                <i class="fas fa-chart-pie mr-2"></i> ภาพรวมครูทั้งหมด
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -234,14 +214,14 @@
                     </div>
                     
                     <div class="flex flex-wrap gap-2">
-                        <button onclick="saveAll()" class="sc-btn green"><i class="fas fa-save"></i> บันทึก</button>
-                        <button onclick="clearSchedule()" class="sc-btn rose"><i class="fas fa-broom"></i> ล้าง</button>
+                        <button id="btn-save-all" onclick="saveAll()" class="sc-btn green"><i class="fas fa-save"></i> บันทึก</button>
+                        <button id="btn-clear" onclick="clearSchedule()" class="sc-btn rose"><i class="fas fa-broom"></i> ล้าง</button>
                         <button onclick="validateSchedule()" class="sc-btn amber"><i class="fas fa-check-double"></i> ตรวจสอบ</button>
                         <div class="w-px h-8 bg-slate-200 mx-1 hidden sm:block"></div>
                         <button onclick="exportExcel()" class="sc-btn blue"><i class="fas fa-file-excel"></i> Excel</button>
                         <button onclick="exportPDF()" class="sc-btn indigo"><i class="fas fa-file-pdf"></i> PDF</button>
                         <button onclick="printSchedule()" class="sc-btn slate"><i class="fas fa-print"></i> พิมพ์</button>
-                        <button onclick="openNotificationSettings()" class="sc-btn purple"><i class="fas fa-bell"></i> แจ้งเตือน</button>
+                        <button id="btn-notif" onclick="openNotificationSettings()" class="sc-btn purple"><i class="fas fa-bell"></i> แจ้งเตือน</button>
                     </div>
                 </div>
 
@@ -257,7 +237,7 @@
                                 </h3>
                                 <p class="text-[10px] text-slate-400 mt-1">ลากวิชาไปวางในตาราง หรือคลิกเลือก</p>
                             </div>
-                            <button onclick="openAddSubjectModal()" class="w-9 h-9 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center" title="เพิ่มรายวิชา">
+                            <button id="btn-add-subject" onclick="openAddSubjectModal()" class="w-9 h-9 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center" title="เพิ่มรายวิชา">
                                 <i class="fas fa-plus text-sm"></i>
                             </button>
                         </div>
@@ -342,7 +322,6 @@
                     </div>
                 </div>
                 
-                <!-- ✅ เพิ่มช่อง ห้องที่ใช้สอนจริง -->
                 <div>
                     <label class="block text-xs font-bold text-slate-600 mb-1">ห้องที่ใช้สอนจริง (ระบุหรือไม่ก็ได้)</label>
                     <input type="text" id="subj-teaching-room" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all bg-slate-50 focus:bg-white" placeholder="เช่น ห้องแนะแนว 3, 224, 526">
