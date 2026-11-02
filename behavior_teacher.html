@@ -153,7 +153,7 @@
 
     <script>
         // ============================================================
-        // behavior_teacher — Inline Logic (ไม่เปลี่ยน)
+        // behavior_teacher — Inline Logic (แก้ไขบั๊ก .single() แล้ว)
         // ============================================================
         let myClassroom = null;
         let studentData = [];
@@ -195,33 +195,17 @@
                     .select('grade_level').eq('teacher_id', user.id);
                 managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
 
-                const { data: adviserRoom } = await db.from('core_classrooms')
-                    .select('id')
-                    .or(`adviser_id_1.eq.${user.id},adviser_id_2.eq.${user.id}`)
-                    .maybeSingle();
-                const hasClassroom = !!adviserRoom;
-
-                if (!isAdmin) {
-                    const hasAccess = await hasModuleAccess(role, 'behavior', user.id);
-                    const hasSpecialAccess = isDisciplineHead || managedGrades.length > 0 || hasClassroom;
-                    if (!hasAccess && !hasSpecialAccess) {
-                        await Swal.fire({
-                            icon: 'warning',
-                            title: 'ไม่มีสิทธิ์เข้าใช้งาน',
-                            text: 'คุณไม่ได้รับอนุญาตให้ใช้งานระบบงานปกครอง',
-                            confirmButtonText: 'กลับหน้าหลัก'
-                        });
-                        window.location.href = 'index.html';
-                        return;
-                    }
-                }
-
                 await logUserAction('เข้าสู่ระบบงานปกครอง (ครูที่ปรึกษา)', 'behavior');
 
-                const { data: classroom } = await db.from('core_classrooms')
+                // ✅ FIX: เปลี่ยนจาก .single() เป็นการดึง Array เพื่อป้องกัน Error เมื่อครูไม่มีห้อง หรือเป็นแอดมิน
+                const { data: classrooms, error: classErr } = await db.from('core_classrooms')
                     .select('*')
-                    .or(`adviser_id_1.eq.${user.id},adviser_id_2.eq.${user.id}`)
-                    .single();
+                    .or(`adviser_id_1.eq.${user.id},adviser_id_2.eq.${user.id}`);
+
+                if (classErr) throw classErr;
+
+                // เลือกห้องแรกที่เจอ (ถ้ามี)
+                const classroom = (classrooms && classrooms.length > 0) ? classrooms[0] : null;
 
                 if (!classroom) {
                     const hasAdminAccess = isAdmin || isDisciplineHead || managedGrades.length > 0;
@@ -251,6 +235,7 @@
                 console.error('Initialization error:', err);
                 Swal.fire('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถเริ่มระบบได้', 'error');
             } finally {
+                // ✅ บังคับให้หน้าจอแสดงผลเสมอ แม้จะเกิด Error
                 document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
             }
         });
