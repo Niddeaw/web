@@ -7,7 +7,7 @@ const PERIODS = [
     { no: 2, start: '09:20', end: '10:10' },
     { no: 3, start: '10:10', end: '11:00' },
     { no: 4, start: '11:00', end: '11:50' },
-    { no: 5, start: '11:50', end: '12:40' },
+    { no: 5, start: '11:30', end: '12:40' },
     { no: 6, start: '12:40', end: '13:30' },
     { no: 7, start: '13:30', end: '14:20' },
     { no: 8, start: '14:20', end: '15:10' },
@@ -1321,6 +1321,28 @@ async function printSchedule() {
         Swal.close();
         Swal.fire('ผิดพลาด', err.message, 'error');
     }
+}
+
+// =======================================================
+// System Settings (สำหรับ Admin/Super Admin)
+// =======================================================
+function openSettings() {
+    if (!isSuperAdmin) {
+        return Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
+    }
+    Swal.fire({
+        icon: 'info',
+        title: 'ตั้งค่าระบบ',
+        text: 'ระบบตารางสอนใช้การตั้งค่าจากส่วนกลาง (Super Admin) ท่านสามารถจัดการข้อมูลพื้นฐานได้ที่หน้าผู้ดูแลระบบ',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-external-link-alt"></i> ไปหน้าผู้ดูแลระบบ',
+        cancelButtonText: 'ปิด',
+        confirmButtonColor: '#4f46e5'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = 'super_admin.html';
+        }
+    });
 }
 
 // =======================================================
