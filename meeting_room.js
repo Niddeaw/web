@@ -6,6 +6,8 @@
 // ✅ บันทึก/restore โหมดผ่าน sessionStorage
 // ✅ NEW: WRKModuleAdmin bootstrap + sync + onSidebarRendered
 // ✅ FIX: modal centering (add/remove flex), duplicate openRoomFormModal, logout reset
+// ✅ NEW: Department → Tom Select (preset + พิมพ์กลุ่มสาระ/กลุ่มงานใหม่ได้)
+// ✅ NEW: ขอใช้อุปกรณ์โสตทัศนศึกษา → checkbox 4 ตัว + ช่อง "อื่นๆ" (บันทึกใน mr_reservations.equipment)
 // ============================================================
 
 // ==========================================
@@ -36,6 +38,19 @@ let editResponsibleSelect = null;
 let currentSettingsTab = 'rooms';
 let tsTeacherAppoint = null;
 let moduleAdminsCache = [];
+
+// ✅ NEW: Department + AV Equipment
+let departmentSelect = null;
+let editDepartmentSelect = null;
+
+const PRESET_DEPARTMENTS = [
+    'กลุ่มบริหารวิชาการ',
+    'กลุ่มบริหารงบประมาณ',
+    'กลุ่มบริหารงานบุคคล',
+    'กลุ่มบริหารทั่วไป'
+];
+
+const AV_EQUIPMENT_PRESETS = ['ระบบเครื่องเสียง', 'ไมค์', 'โปรเจคเตอร์'];
 
 // ==========================================
 // ✅ ปุ่มนำทาง — meeting_room
@@ -85,6 +100,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         try { await loadRooms(); } catch (e) { console.warn('⚠️ loadRooms failed:', e); }
         try { await initPersonnelSelect(); } catch (e) { console.warn('⚠️ initPersonnelSelect failed:', e); }
         try { await initCalendar(); } catch (e) { console.warn('⚠️ initCalendar failed:', e); }
+
+        // ✅ NEW: bind AV equipment checkbox handlers
+        bindAvEquipmentHandlers();
 
         applyModeUI();
 
@@ -263,6 +281,7 @@ function switchTab(tabId) {
 
 // ==========================================
 // Tom Select - ค้นหาชื่อครู (มี fallback ถ้าไม่มีคอลัมน์ phone)
+// + ✅ NEW: Department Tom Select + AV checkbox handlers
 // ==========================================
 async function initPersonnelSelect() {
     // ✅ ลองดึงพร้อม phone ก่อน
@@ -318,6 +337,125 @@ async function initPersonnelSelect() {
             }
         });
     }
+
+    // ✅ NEW: init Department Tom Select (ฟอร์มหลัก)
+    if (departmentSelect) { departmentSelect.destroy(); departmentSelect = null; }
+    departmentSelect = initDepartmentSelect('bk_department');
+}
+
+// ==========================================
+// ✅ NEW: Department Tom Select (preset + พิมพ์เองได้)
+// ==========================================
+function buildDepartmentOptions() {
+    return PRESET_DEPARTMENTS.map(d => ({ value: d, text: d }));
+}
+
+function initDepartmentSelect(selectId, currentValue = '') {
+    const el = document.getElementById(selectId);
+    if (!el) return null;
+
+    // ถ้ามี instance เก่า ให้ destroy ก่อน
+    if (el.tomselect) el.tomselect.destroy();
+
+    return new TomSelect(el, {
+        create: true,                 // ✅ พิมพ์ชื่อใหม่ได้
+        createOnBlur: true,
+        persist: false,
+        options: buildDepartmentOptions(),
+        items: currentValue ? [currentValue] : [],
+        placeholder: 'เลือกหรือพิมพ์กลุ่มงาน/กลุ่มสาระ...',
+        maxItems: 1,
+        dropdownParent: 'body',
+        render: {
+            option(data, escape) {
+                return `<div class="py-1 px-1">
+                    <i class="fa-solid fa-building-columns text-slate-400 mr-2"></i>${escape(data.text)}
+                </div>`;
+            },
+            option_create(data, escape) {
+                return `<div class="create py-1 px-1 text-blue-600">
+                    <i class="fa-solid fa-plus mr-2"></i>เพิ่ม "${escape(data.input)}"
+                </div>`;
+            },
+            item(data, escape) {
+                return `<div>${escape(data.text)}</div>`;
+            }
+        }
+    });
+}
+
+// ==========================================
+// ✅ NEW: AV Equipment checkbox handlers
+// ==========================================
+function bindAvEquipmentHandlers() {
+    // ฟอร์มหลัก
+    document.querySelectorAll('.av-checkbox').forEach(cb => {
+        cb.addEventListener('change', function () {
+            if (this.value === 'อื่นๆ') {
+                const otherInput = document.getElementById('bk_av_other');
+                if (!otherInput) return;
+                otherInput.disabled = !this.checked;
+                if (this.checked) otherInput.focus();
+                else otherInput.value = '';
+            }
+        });
+    });
+
+    // ฟอร์มแก้ไข
+    document.querySelectorAll('.eb-av-checkbox').forEach(cb => {
+        cb.addEventListener('change', function () {
+            if (this.value === 'อื่นๆ') {
+                const otherInput = document.getElementById('eb_av_other');
+                if (!otherInput) return;
+                otherInput.disabled = !this.checked;
+                if (this.checked) otherInput.focus();
+                else otherInput.value = '';
+            }
+        });
+    });
+}
+
+// ==========================================
+// ✅ NEW: AV Equipment helpers
+// ==========================================
+function getSelectedAvEquipment(prefix = 'av') {
+    const checkboxes = document.querySelectorAll(`.${prefix}-checkbox:checked`);
+    const list = [];
+    checkboxes.forEach(cb => {
+        if (cb.value === 'อื่นๆ') {
+            const otherInputId = prefix === 'av' ? 'bk_av_other' : 'eb_av_other';
+            const otherVal = document.getElementById(otherInputId)?.value.trim();
+            if (otherVal) list.push(`อื่นๆ: ${otherVal}`);
+            else list.push('อื่นๆ');
+        } else {
+            list.push(cb.value);
+        }
+    });
+    return list;
+}
+
+function setSelectedAvEquipment(equipmentString, prefix = 'eb') {
+    // equipmentString = "ระบบเครื่องเสียง, ไมค์, อื่นๆ: ปลั๊กพ่วง"
+    const items = (equipmentString || '').split(',').map(s => s.trim()).filter(Boolean);
+    const otherInput = document.getElementById(`${prefix}_av_other`);
+
+    // reset ก่อน
+    document.querySelectorAll(`.${prefix}-av-checkbox`).forEach(cb => cb.checked = false);
+    if (otherInput) { otherInput.value = ''; otherInput.disabled = true; }
+
+    items.forEach(item => {
+        if (item.startsWith('อื่นๆ')) {
+            const otherCb = document.querySelector(`.${prefix}-av-checkbox[value="อื่นๆ"]`);
+            if (otherCb) otherCb.checked = true;
+            if (otherInput) {
+                otherInput.disabled = false;
+                otherInput.value = item.replace(/^อื่นๆ\s*:?\s*/, '');
+            }
+        } else {
+            const cb = document.querySelector(`.${prefix}-av-checkbox[value="${item}"]`);
+            if (cb) cb.checked = true;
+        }
+    });
 }
 
 // ==========================================
@@ -739,6 +877,19 @@ async function initCalendar() {
             right: 'dayGridMonth,timeGridWeek,listWeek'
         },
         locale: 'th',
+        // ✅ NEW: แปลข้อความปุ่ม toolbar เป็นภาษาไทย
+        buttonText: {
+            today: 'วันนี้',
+            month: 'เดือน',
+            week: 'สัปดาห์',
+            day: 'วัน',
+            list: 'รายการ',
+            prev: 'ก่อนหน้า',
+            next: 'ถัดไป'
+        },
+        allDayText: 'ตลอดวัน',
+        moreLinkText: 'เพิ่มเติม',
+        noEventsText: 'ไม่มีกิจกรรม',
         events: async function (info, successCallback, failureCallback) {
             const { data, error } = await db.from('mr_reservations')
                 .select('*, mr_rooms(room_name)')
@@ -769,6 +920,7 @@ async function initCalendar() {
                         <p><b>เบอร์ติดต่อ:</b> ${p.phone}</p>
                         <p><b>เริ่ม:</b> ${formatThaiDate(p.start_time)}</p>
                         <p><b>สิ้นสุด:</b> ${formatThaiDate(p.end_time)}</p>
+                        ${p.equipment ? `<p><b><i class="fa-solid fa-headphones"></i> อุปกรณ์โสตทัศนศึกษา:</b> ${p.equipment}</p>` : ''}
                         ${p.reject_reason ? `<p class="text-red-600 border-t pt-2 mt-2"><b>เหตุผลที่ไม่อนุมัติ:</b> ${p.reject_reason}</p>` : ''}
                     </div>
                 `,
@@ -802,9 +954,10 @@ async function submitBooking(e) {
     const end = document.getElementById('bk_end').value;
     const roomId = document.getElementById('bk_room').value;
     const attendees = parseInt(document.getElementById('bk_attendees').value);
+    const department = departmentSelect ? departmentSelect.getValue() : document.getElementById('bk_department').value;
 
-    if (!start || !end || !roomId || !attendees) {
-        return Swal.fire('กรุณากรอกข้อมูลให้ครบ', '', 'warning');
+    if (!start || !end || !roomId || !attendees || !department) {
+        return Swal.fire('กรุณากรอกข้อมูลให้ครบ', 'กรุณากรอกข้อมูลที่จำเป็นให้ครบทุกช่อง (รวมถึงหน่วยงาน)', 'warning');
     }
 
     if (new Date(start) >= new Date(end)) {
@@ -879,17 +1032,21 @@ function switchRoomAndSubmit(newRoomId) {
 async function executeBooking(roomId) {
     Swal.fire({ title: 'กำลังส่งคำขอ...', didOpen: () => Swal.showLoading() });
 
+    // ✅ NEW: รวมอุปกรณ์โสตทัศนศึกษา
+    const avEquipment = getSelectedAvEquipment('av');
+
     const payload = {
         user_id: currentUserId,
         room_id: roomId,
         title: document.getElementById('bk_title').value,
-        department: document.getElementById('bk_department').value,
+        department: departmentSelect ? departmentSelect.getValue() : document.getElementById('bk_department').value,
         work_group: document.getElementById('bk_workgroup').value,
         responsible_person: responsibleSelect ? responsibleSelect.getValue() : document.getElementById('bk_responsible').value,
         phone: document.getElementById('bk_phone').value,
         attendee_count: parseInt(document.getElementById('bk_attendees').value),
         start_time: new Date(document.getElementById('bk_start').value).toISOString(),
-        end_time: new Date(document.getElementById('bk_end').value).toISOString()
+        end_time: new Date(document.getElementById('bk_end').value).toISOString(),
+        equipment: avEquipment.join(', ')   // ✅ NEW: บันทึกอุปกรณ์
     };
 
     const { error } = await db.from('mr_reservations').insert([payload]);
@@ -899,7 +1056,14 @@ async function executeBooking(roomId) {
         await logUserAction(`ส่งคำขอจองห้อง: ${payload.title} (ห้อง ID: ${roomId})`, 'meeting_room');
         document.getElementById('bookingForm').reset();
         if (responsibleSelect) responsibleSelect.clear();
+        if (departmentSelect) departmentSelect.clear();
         document.getElementById('bk_phone').value = '';
+
+        // ✅ reset AV
+        document.querySelectorAll('.av-checkbox').forEach(cb => cb.checked = false);
+        const otherInput = document.getElementById('bk_av_other');
+        if (otherInput) { otherInput.value = ''; otherInput.disabled = true; }
+
         document.querySelectorAll("#bk_start, #bk_end").forEach(el => {
             if (el._flatpickr) el._flatpickr.clear();
         });
@@ -923,7 +1087,10 @@ async function loadMyBookings() {
     if (data && data.length > 0) {
         tbody.innerHTML = data.map(r => `
             <tr>
-                <td class="py-2 px-3 font-bold text-blue-700">${r.title}</td>
+                <td class="py-2 px-3 font-bold text-blue-700">
+                    ${r.title}
+                    ${r.equipment ? `<div class="text-[10px] text-blue-500 font-normal mt-0.5"><i class="fa-solid fa-headphones mr-1"></i>${r.equipment}</div>` : ''}
+                </td>
                 <td class="py-2 px-3 text-sm">${r.mr_rooms.room_name}</td>
                 <td class="py-2 px-3 text-center text-xs">${formatThaiDate(r.start_time)}</td>
                 <td class="py-2 px-3 text-center text-xs">${formatThaiDate(r.end_time)}</td>
@@ -978,6 +1145,7 @@ async function loadAdminBookings() {
                 <td class="py-2 px-3">
                     <div class="font-bold text-blue-700">${r.title}</div>
                     <div class="text-[10px] text-slate-500">หน่วยงาน: ${r.department}</div>
+                    ${r.equipment ? `<div class="text-[10px] text-blue-600 mt-0.5"><i class="fa-solid fa-headphones mr-1"></i>${r.equipment}</div>` : ''}
                 </td>
                 <td class="py-2 px-3 text-sm">
                     ${r.core_personnel.first_name} ${r.core_personnel.last_name}<br>
@@ -993,8 +1161,10 @@ async function loadAdminBookings() {
                         <button onclick="updateBookingStatus('${r.id}', 'approved')" class="text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2 py-1.5 rounded-lg font-bold text-xs shadow-sm mr-1 transition" title="อนุมัติ"><i class="fa-solid fa-check"></i> อนุมัติ</button>
                         <button onclick="rejectBooking('${r.id}')" class="text-rose-600 bg-rose-50 hover:bg-rose-100 px-2 py-1.5 rounded-lg font-bold text-xs shadow-sm mr-1 transition" title="ปฏิเสธ"><i class="fa-solid fa-xmark"></i> ปฏิเสธ</button>
                     ` : ''}
-                    
-                    <!-- ✅ ปุ่มลบ แสดงตลอดเวลา (สำหรับ Admin) -->
+
+                    <!-- ✅ NEW: Admin แก้ไขได้ทุกสถานะ -->
+                    <button onclick="openEditBookingModal('${r.id}', true)" class="text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1.5 rounded-lg text-xs font-bold shadow-sm mr-1 transition" title="แก้ไขการจอง (Admin)"><i class="fa-solid fa-pen"></i> แก้ไข</button>
+
                     <button onclick="deleteBooking('${r.id}', false)" class="text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 px-2 py-1.5 rounded-lg text-xs font-bold shadow-sm transition" title="ลบรายการถาวร"><i class="fa-solid fa-trash"></i> ลบ</button>
                 </td>
             </tr>
@@ -1075,15 +1245,29 @@ async function rejectBooking(id) {
 // ==========================================
 // Edit Booking
 // ==========================================
-async function openEditBookingModal(id) {
+async function openEditBookingModal(id, isAdminEdit = false) {
     const { data: r, error } = await db.from('mr_reservations').select('*').eq('id', id).single();
     if (error || !r) return Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลการจอง', 'error');
+
+    window._editingAsAdmin = isAdminEdit;
+
+    // ✅ เปลี่ยน title ตามโหมด
+    const titleEl = document.getElementById('editBookingModal').querySelector('h3');
+    if (titleEl) {
+        titleEl.innerHTML = isAdminEdit
+            ? '<i class="fa-solid fa-user-shield mr-1"></i> แก้ไขการจอง (โหมดแอดมิน)'
+            : '<i class="fa-solid fa-pen-to-square mr-1"></i> แก้ไขคำขอจองห้อง';
+    }
 
     document.getElementById('eb_id').value = r.id;
     document.getElementById('eb_title').value = r.title;
     document.getElementById('eb_attendees').value = r.attendee_count;
-    document.getElementById('eb_department').value = r.department;
     document.getElementById('eb_phone').value = r.phone || '';
+
+    if (editDepartmentSelect) { editDepartmentSelect.destroy(); editDepartmentSelect = null; }
+    editDepartmentSelect = initDepartmentSelect('eb_department', r.department || '');
+
+    setSelectedAvEquipment(r.equipment || '', 'eb');
 
     const roomSel = document.getElementById('eb_room');
     roomSel.innerHTML = roomsData.filter(rm => rm.is_active).map(rm =>
@@ -1133,6 +1317,8 @@ function closeEditBookingModal() {
     if (editFlatStart) { editFlatStart.destroy(); editFlatStart = null; }
     if (editFlatEnd) { editFlatEnd.destroy(); editFlatEnd = null; }
     if (editResponsibleSelect) { editResponsibleSelect.destroy(); editResponsibleSelect = null; }
+    if (editDepartmentSelect) { editDepartmentSelect.destroy(); editDepartmentSelect = null; }
+    window._editingAsAdmin = false;
 }
 
 async function saveEditBooking(e) {
@@ -1143,6 +1329,12 @@ async function saveEditBooking(e) {
     const end = document.getElementById('eb_end').value;
     const roomId = document.getElementById('eb_room').value;
     const attendees = parseInt(document.getElementById('eb_attendees').value);
+    const department = editDepartmentSelect ? editDepartmentSelect.getValue() : document.getElementById('eb_department').value;
+    const isAdminEdit = window._editingAsAdmin === true;
+
+    if (!department) {
+        return Swal.fire('กรุณากรอกข้อมูลให้ครบ', 'กรุณาระบุหน่วยงาน', 'warning');
+    }
 
     if (new Date(start) >= new Date(end)) {
         return Swal.fire('เวลาไม่ถูกต้อง', 'เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น', 'warning');
@@ -1178,27 +1370,45 @@ async function saveEditBooking(e) {
         return Swal.fire('ห้องไม่ว่าง', 'มีการจองห้องนี้ในช่วงเวลาเดียวกันอยู่แล้ว กรุณาเลือกเวลาหรือห้องอื่น', 'error');
     }
 
+    const avEquipment = getSelectedAvEquipment('eb');
+
     const payload = {
         room_id: roomId,
         title: document.getElementById('eb_title').value,
-        department: document.getElementById('eb_department').value,
+        department: department,
         responsible_person: editResponsibleSelect ? editResponsibleSelect.getValue() : document.getElementById('eb_responsible').value,
         phone: document.getElementById('eb_phone').value,
         attendee_count: attendees,
         start_time: new Date(start).toISOString(),
         end_time: new Date(end).toISOString(),
-        status: 'pending'
+        equipment: avEquipment.join(', ')
     };
+
+    if (!isAdminEdit) {
+        payload.status = 'pending';
+    }
 
     const { error } = await db.from('mr_reservations').update(payload).eq('id', id);
     if (error) {
         Swal.fire('ผิดพลาด', error.message, 'error');
     } else {
-        await logUserAction(`แก้ไขการจอง ID: ${id} (รีเซ็ตเป็นรออนุมัติ)`, 'meeting_room');
+        const logMsg = isAdminEdit
+            ? `แก้ไขการจอง ID: ${id} (โดยแอดมิน — ไม่รีเซ็ตสถานะ)`
+            : `แก้ไขการจอง ID: ${id} (รีเซ็ตเป็นรออนุมัติ)`;
+        await logUserAction(logMsg, 'meeting_room');
+
         closeEditBookingModal();
         if (calendarInstance) calendarInstance.refetchEvents();
         await loadMyBookings();
-        Swal.fire({ icon: 'success', title: 'แก้ไขสำเร็จ', text: 'ระบบจะส่งคำขอรออนุมัติใหม่', timer: 2000, showConfirmButton: false });
+        if (isAdminEdit) await loadAdminBookings();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'แก้ไขสำเร็จ',
+            text: isAdminEdit ? 'บันทึกการแก้ไขเรียบร้อย (สถานะคงเดิม)' : 'ระบบจะส่งคำขอรออนุมัติใหม่',
+            timer: 2000,
+            showConfirmButton: false
+        });
     }
 }
 
@@ -1329,4 +1539,4 @@ window.logout = async function () {
     }
 };
 
-console.log('✅ meeting_room.js loaded (template-compliant + WRKModuleAdmin + settings topbar)');
+console.log('✅ meeting_room.js loaded (template-compliant + WRKModuleAdmin + settings topbar + department Tom Select + AV equipment)');

@@ -153,6 +153,47 @@
                 width: 240px;
             }
         }
+
+        /* ✅ ให้ทุกปุ่ม toolbar ใช้สีเดียวกัน */
+        .fc .fc-button-primary {
+            background-color: #21BCFF !important;
+            border-color: #21BCFF !important;
+            color: #ffffff !important;
+            font-weight: 600 !important;
+            border-radius: 0.5rem !important;
+        }
+
+        .fc .fc-button-primary:hover {
+            background-color: #1C69A8 !important;
+            border-color: #1C69A8 !important;
+        }
+
+        .fc .fc-button-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ปุ่มที่ active (เช่น week ที่เลือกอยู่) ให้เด่นขึ้น */
+        .fc .fc-button-primary:not(:disabled).fc-button-active,
+        .fc .fc-button-primary:not(:disabled):active {
+            background-color: #1C69A8 !important;
+            border-color: #1C69A8 !important;
+        }
+
+        /* ลบขอบสีขาวระหว่างปุ่ม */
+        .fc .fc-button-group>.fc-button {
+            border-radius: 0 !important;
+        }
+
+        .fc .fc-button-group>.fc-button:first-child {
+            border-top-left-radius: 0.5rem !important;
+            border-bottom-left-radius: 0.5rem !important;
+        }
+
+        .fc .fc-button-group>.fc-button:last-child {
+            border-top-right-radius: 0.5rem !important;
+            border-bottom-right-radius: 0.5rem !important;
+        }
     </style>
 </head>
 
@@ -223,16 +264,44 @@
                                 <input type="number" id="bk_attendees" min="1" required
                                     class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
                             </div>
+
+                            <!-- ✅ NEW: ขอใช้อุปกรณ์โสตทัศนศึกษา -->
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-2">
+                                    <i class="fa-solid fa-headphones text-blue-500 mr-1"></i>
+                                    ขอใช้อุปกรณ์โสตทัศนศึกษา
+                                </label>
+                                <div class="space-y-2 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                        <input type="checkbox" class="av-checkbox w-4 h-4 text-blue-600 rounded"
+                                            value="ระบบเครื่องเสียง">
+                                        <span>ระบบเครื่องเสียง</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                        <input type="checkbox" class="av-checkbox w-4 h-4 text-blue-600 rounded"
+                                            value="ไมค์">
+                                        <span>ไมค์</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                        <input type="checkbox" class="av-checkbox w-4 h-4 text-blue-600 rounded"
+                                            value="โปรเจคเตอร์">
+                                        <span>โปรเจคเตอร์</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                                        <input type="checkbox" class="av-checkbox w-4 h-4 text-blue-600 rounded"
+                                            value="อื่นๆ">
+                                        <span>อื่นๆ ระบุ</span>
+                                    </label>
+                                    <input type="text" id="bk_av_other" disabled placeholder="ระบุอุปกรณ์อื่นๆ..."
+                                        class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed mt-1">
+                                </div>
+                            </div>
+
+                            <!-- ✅ NEW: หน่วยงาน (Tom Select) -->
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 mb-1">หน่วยงาน *</label>
                                 <select id="bk_department" required
-                                    class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
-                                    <option value="">-- เลือกกลุ่มงาน --</option>
-                                    <option value="กลุ่มบริหารวิชาการ">กลุ่มบริหารวิชาการ</option>
-                                    <option value="กลุ่มบริหารงบประมาณ">กลุ่มบริหารงบประมาณ</option>
-                                    <option value="กลุ่มบริหารงานบุคคล">กลุ่มบริหารงานบุคคล</option>
-                                    <option value="กลุ่มบริหารทั่วไป">กลุ่มบริหารทั่วไป</option>
-                                </select>
+                                    placeholder="เลือกหรือพิมพ์กลุ่มงาน/กลุ่มสาระ..."></select>
                             </div>
                             <input type="hidden" id="bk_workgroup">
                             <div>
@@ -487,17 +556,43 @@
                     <input type="number" id="eb_attendees" min="1" required
                         class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
                 </div>
+
+                <!-- ✅ NEW: ขอใช้อุปกรณ์โสตทัศนศึกษา (Edit) -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-2">
+                        <i class="fa-solid fa-headphones text-blue-500 mr-1"></i>
+                        ขอใช้อุปกรณ์โสตทัศนศึกษา
+                    </label>
+                    <div class="space-y-2 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                            <input type="checkbox" class="eb-av-checkbox w-4 h-4 text-blue-600 rounded"
+                                value="ระบบเครื่องเสียง">
+                            <span>ระบบเครื่องเสียง</span>
+                        </label>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                            <input type="checkbox" class="eb-av-checkbox w-4 h-4 text-blue-600 rounded" value="ไมค์">
+                            <span>ไมค์</span>
+                        </label>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                            <input type="checkbox" class="eb-av-checkbox w-4 h-4 text-blue-600 rounded"
+                                value="โปรเจคเตอร์">
+                            <span>โปรเจคเตอร์</span>
+                        </label>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                            <input type="checkbox" class="eb-av-checkbox w-4 h-4 text-blue-600 rounded" value="อื่นๆ">
+                            <span>อื่นๆ ระบุ</span>
+                        </label>
+                        <input type="text" id="eb_av_other" disabled placeholder="ระบุอุปกรณ์อื่นๆ..."
+                            class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed mt-1">
+                    </div>
+                </div>
+
+                <!-- ✅ NEW: หน่วยงาน (Tom Select) -->
                 <div>
                     <label class="block text-xs font-bold text-slate-500 mb-1">หน่วยงาน *</label>
-                    <select id="eb_department" required
-                        class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
-                        <option value="">-- เลือกกลุ่มงาน --</option>
-                        <option value="กลุ่มบริหารวิชาการ">กลุ่มบริหารวิชาการ</option>
-                        <option value="กลุ่มบริหารงบประมาณ">กลุ่มบริหารงบประมาณ</option>
-                        <option value="กลุ่มบริหารงานบุคคล">กลุ่มบริหารงานบุคคล</option>
-                        <option value="กลุ่มบริหารทั่วไป">กลุ่มบริหารทั่วไป</option>
-                    </select>
+                    <select id="eb_department" required placeholder="เลือกหรือพิมพ์กลุ่มงาน/กลุ่มสาระ..."></select>
                 </div>
+
                 <div>
                     <label class="block text-xs font-bold text-slate-500 mb-1">ผู้รับผิดชอบ *</label>
                     <select id="eb_responsible" required placeholder="ค้นหาชื่อครู..."></select>
