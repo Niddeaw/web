@@ -18,6 +18,9 @@ let actualIsAdmin = false;
 let moduleAdminChecked = false;
 let isModuleAdmin = false;
 
+// ✅ เก็บโหมดการนำเข้าที่ผู้ใช้เลือก (full | pa3-only)
+window._importMode = null;
+
 // ==========================================
 // ROLE HELPERS
 // ==========================================
@@ -31,7 +34,6 @@ const isAdmin = () => {
     if (currentProfile?.role === 'super_admin') return true;
     if (isAdminUser(currentProfile?.role, false)) return true;
     if (moduleAdminChecked && isModuleAdmin) return true;
-    // ✅ fallback WRKModuleAdmin
     if (typeof WRKModuleAdmin !== 'undefined' && WRKModuleAdmin.has('personnel')) return true;
     const localAdmins = window._personnelSettings?.local_admins || [];
     return localAdmins.includes(currentProfile?.id);
@@ -41,12 +43,9 @@ const isTeacher = () => !isAdmin();
 
 const canManagePersonnelSettings = () => {
     if (forceTeacherMode) return false;
-    // ✅ role-based (super_admin, admin)
     if (window.canManageSettings(currentProfile?.role)) return true;
-    // ✅ module admin (from WRKModuleAdmin)
     if (typeof WRKModuleAdmin !== 'undefined' && WRKModuleAdmin.has('personnel')) return true;
     if (moduleAdminChecked && isModuleAdmin) return true;
-    // ✅ local admin (from settings)
     const localAdmins = window._personnelSettings?.local_admins || [];
     if (localAdmins.includes(currentProfile?.id)) return true;
     return false;
@@ -106,13 +105,11 @@ function switchTab(id, btn) {
 
 // ==========================================
 // ✅ ปุ่มนำทาง — personnel
-//    แสดงปุ่มสลับโหมดสำหรับ admin / module admin
 // ==========================================
 window.refreshNavButtons = function () {
     const role = window.currentUserRole || currentProfile?.role;
     const allowedRoles = ['super_admin', 'admin', 'director', 'deputy'];
 
-    // ✅ ตรวจ Module Admin จาก 2 แหล่ง (memory + WRKModuleAdmin)
     const isModuleAdminEffective = isModuleAdmin
         || (typeof WRKModuleAdmin !== 'undefined' && WRKModuleAdmin.has('personnel'));
 
@@ -124,7 +121,6 @@ window.refreshNavButtons = function () {
         if (canToggle) updateToggleModeButton();
     }
 
-    // ✅ Sync WRKModuleAdmin (rerender=false เพราะ sidebar item ใช้ roles อยู่แล้ว)
     if (typeof WRKModuleAdmin !== 'undefined') {
         WRKModuleAdmin.sync('personnel', isModuleAdminEffective, false);
     }
@@ -135,12 +131,10 @@ function updateToggleModeButton() {
     if (!btn) return;
     btn.classList.add('d-btn-mode');
     if (forceTeacherMode) {
-        // อยู่โหมดครู → เสนอสลับเป็นแอดมิน
         btn.classList.remove('teacher', 'depthead');
         btn.classList.add('admin');
         btn.innerHTML = '<i class="fas fa-user-shield"></i><span>โหมดแอดมิน</span>';
     } else {
-        // อยู่โหมดแอดมิน → เสนอสลับเป็นครู
         btn.classList.remove('admin', 'depthead');
         btn.classList.add('teacher');
         btn.innerHTML = '<i class="fas fa-chalkboard-user"></i><span>โหมดครู</span>';
@@ -157,7 +151,6 @@ window.onload = async () => {
         currentUser = result.user;
         currentProfile = result.personnel;
 
-        // ✅ expose window.* สำหรับ onReady + refreshNavButtons
         window.currentUser = currentUser;
         window.currentProfile = currentProfile;
         window.currentUserId = currentUser.id;
@@ -166,27 +159,22 @@ window.onload = async () => {
         setUserDisplayName(currentProfile);
         renderUserAvatar(currentProfile);
 
-        // ✅ ตรวจสอบ Module Admin
         moduleAdminChecked = true;
         isModuleAdmin = await hasModuleAccess(currentProfile.role, 'personnel', currentUser.id);
 
-        // ✅ Sync WRKModuleAdmin → sidebar รู้จัก personnel
         if (typeof WRKModuleAdmin !== 'undefined') {
             WRKModuleAdmin.sync('personnel', isModuleAdmin, false);
         }
         window.isModuleAdmin = isModuleAdmin;
 
-        // ✅ ตรวจสอบสิทธิ์
         const isAdminByRole = isAdminUser(currentProfile.role, false);
         actualIsAdmin = isAdminByRole || isModuleAdmin;
 
-        // ✅ เรียก refreshNavButtons หลัง auth เสร็จ
         if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
 
         await loadCoreUsers();
         await loadSettings();
 
-        // ✅ ตรวจสอบ local_admins หลังโหลด settings
         actualIsAdmin = isAdminByRole || isModuleAdmin || (window._personnelSettings?.local_admins || []).includes(currentProfile.id);
         if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
 
@@ -196,7 +184,6 @@ window.onload = async () => {
         initFlatpickr();
         updatePositionLogic();
 
-        // ✅ อัปเดต birthday notification
         if (typeof window.updateBirthdayNotification === 'function') window.updateBirthdayNotification();
 
         await logUserAction('เข้าสู่ระบบบุคลากร', 'personnel');
@@ -212,7 +199,6 @@ function applyRoleUI() {
     const btnAdd = document.getElementById('btn-add');
     if (btnAdd) btnAdd.style.display = isAdmin() ? '' : 'none';
 
-    // ✅ Info Blocks ซ่อนเฉพาะคนที่ไม่ใช่ Admin
     const isUserAdmin = isAdmin();
     const infoBlocks = document.getElementById('info-blocks-section');
     if (infoBlocks) {
@@ -226,7 +212,6 @@ function applyRoleUI() {
     if (btnImportSheets) btnImportSheets.style.display = isUserAdmin ? '' : 'none';
     if (btnTemplate) btnTemplate.style.display = isUserAdmin ? '' : 'none';
 
-    // ✅ อัปเดต role label แบบ custom (มี emoji)
     updateCustomRoleLabel();
 
     const sel = document.getElementById('inp-personnel-id');
@@ -250,7 +235,6 @@ function applyRoleUI() {
     }
 }
 
-// ✅ Custom role label with emoji
 function updateCustomRoleLabel() {
     if (!currentProfile) return;
     let roleLabel = '🟢 ครูผู้สอน';
@@ -293,7 +277,7 @@ function toggleRoleView() {
     });
 }
 
-/* ── Settings (Admin/SuperAdmin) ── */
+/* ── Settings ── */
 let sysSettings = {};
 
 async function loadSettings() {
@@ -349,7 +333,7 @@ function openSettings() {
 
     loadSettings().then(() => {
         renderLocalAdmins();
-        renderPA3List();   // ✅ เพิ่ม
+        renderPA3List();
     });
 }
 
@@ -388,7 +372,6 @@ function renderLocalAdmins() {
     listEl.innerHTML = '';
     const admins = window._personnelSettings?.local_admins || [];
 
-    // ✅ อัปเดต count badge
     if (countBadge) countBadge.textContent = admins.length;
 
     if (admins.length === 0) {
@@ -459,7 +442,6 @@ function renderPA3List() {
 
     const config = getPA3Config();
 
-    // ✅ อัปเดต count badge
     if (countBadge) countBadge.textContent = config.length;
 
     if (config.length === 0) {
@@ -493,7 +475,6 @@ async function addPA3Year() {
     const year = parseInt(yearInput.value);
     const label = labelInput.value.trim() || `ปีงบประมาณ ${year}`;
 
-    // ✅ Validate
     if (!year || year < 2500 || year > 2700) {
         Swal.fire('ข้อมูลไม่ถูกต้อง', 'กรุณาระบุปี พ.ศ. ที่ถูกต้อง (2500–2700)', 'warning');
         yearInput.focus();
@@ -532,7 +513,7 @@ async function removePA3Year(year) {
         html: `<div class="text-sm text-slate-600 space-y-1 text-left">
             <p>การลบปี <b class="text-red-600">${year}</b> ออกจะทำให้</p>
             <p>• ไม่แสดงช่องใส่ลิงค์ PA3 ปีนี้ในหน้าแก้ไขบุคลากร</p>
-            <p class="text-xs text-slate-400 mt-2">💾 ข้อมูลที่กรอกไว้แล้วจะยังอยู่ในฐานข้อมูล (แสดงกลับได้ถ้าเพิ่มปีนี้กลับมาอีกครั้ง)</p>
+            <p class="text-xs text-slate-400 mt-2">💾 ข้อมูลที่กรอกไว้แล้วจะยังอยู่ในฐานข้อมูล</p>
         </div>`,
         icon: 'warning',
         showCancelButton: true,
@@ -697,7 +678,6 @@ function syncPaInfoPanel() {
 }
 
 /* ── PA Inputs ──────────────── */
-// ✅ Default: ถ้า admin ยังไม่ตั้งค่า จะใช้ชุดนี้
 const DEFAULT_PA3_CONFIG = [
     { id: 'pa_2565', year: 2565, label: 'ปีงบประมาณ 2565' },
     { id: 'pa_2566', year: 2566, label: 'ปีงบประมาณ 2566' },
@@ -707,14 +687,11 @@ const DEFAULT_PA3_CONFIG = [
     { id: 'pa_2570', year: 2570, label: 'ปีงบประมาณ 2570' },
 ];
 
-// ✅ อ่าน config จาก settings (ถ้ามี) หรือ default
 function getPA3Config() {
     const cfg = window._personnelSettings?.pa3_config;
     if (Array.isArray(cfg)) {
-        // ถ้ามี array (แม้ empty) → ใช้ของ settings
         return [...cfg].sort((a, b) => (a.year || 0) - (b.year || 0));
     }
-    // ยังไม่มีใน settings → ใช้ default
     return DEFAULT_PA3_CONFIG;
 }
 
@@ -724,7 +701,6 @@ function renderPAInputs(saved = {}) {
     const canEdit = isAdmin();
     const config = getPA3Config();
 
-    // ✅ กรณีไม่มีปีเลย
     if (config.length === 0) {
         el.innerHTML = `
             <div class="col-span-full text-center py-10 text-slate-400">
@@ -847,7 +823,6 @@ function previewAvatar(input) {
     reader.readAsDataURL(file);
 }
 
-/* ── Immediate Upload Button ── */
 async function uploadAvatarNow() {
     if (!_pendingAvatarFile) {
         return Swal.fire('ไม่มีไฟล์', 'ยังไม่ได้เลือกไฟล์รูป', 'info');
@@ -857,7 +832,7 @@ async function uploadAvatarNow() {
         Swal.fire({
             icon: 'info',
             title: 'ยังอัปโหลดไม่ได้',
-            text: 'กรุณากด "บันทึกข้อมูล" ก่อน เพื่อสร้างประวัติ แล้วจึงอัปโหลดรูป หรือใช้วิธีอัปโหลดพร้อมบันทึกตามปกติ',
+            text: 'กรุณากด "บันทึกข้อมูล" ก่อน เพื่อสร้างประวัติ แล้วจึงอัปโหลดรูป',
             confirmButtonText: 'เข้าใจแล้ว'
         });
         return;
@@ -1043,19 +1018,13 @@ function isoToBE(iso) {
     return `${String(d.date()).padStart(2, '0')}/${String(d.month() + 1).padStart(2, '0')}/${d.year() + 543}`;
 }
 
-/* ── กลุ่มสาระการเรียนรู้: จับคู่ค่าเดิมกับรายการมาตรฐาน ── */
+/* ── กลุ่มสาระการเรียนรู้ ── */
 const LEARNING_AREAS = [
-    'ภาษาไทย',
-    'คณิตศาสตร์',
+    'ภาษาไทย', 'คณิตศาสตร์',
     'วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)',
     'วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)',
-    'สังคมศึกษา ศาสนาและวัฒนธรรม',
-    'สุขศึกษาและพลศึกษา',
-    'ศิลปะ',
-    'การงานอาชีพ',
-    'ภาษาต่างประเทศ (ภาษาอังกฤษ)',
-    'ภาษาต่างประเทศ (ภาษาจีน)',
-    'แนะแนว'
+    'สังคมศึกษา ศาสนาและวัฒนธรรม', 'สุขศึกษาและพลศึกษา', 'ศิลปะ', 'การงานอาชีพ',
+    'ภาษาต่างประเทศ (ภาษาอังกฤษ)', 'ภาษาต่างประเทศ (ภาษาจีน)', 'แนะแนว'
 ];
 function normalizeLearningArea(v) {
     if (!v) return '';
@@ -1065,7 +1034,6 @@ function normalizeLearningArea(v) {
     const strip = s => String(s).replace(/[\s()]/g, '');
     const exact = all.find(a => a && strip(a) === strip(raw));
     if (exact) return exact;
-    // ชื่อเดิมแบบย่อ/แบบเก่า
     if (/จีน/.test(raw)) return 'ภาษาต่างประเทศ (ภาษาจีน)';
     if (/อังกฤษ|ต่างประเทศ/.test(raw)) return 'ภาษาต่างประเทศ (ภาษาอังกฤษ)';
     if (/\(เทคโนโลยี\)/.test(raw) || (/เทคโนโลยี|คอมพิวเตอร์/.test(raw) && !/วิทยาศาสตร์/.test(raw))) return 'วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)';
@@ -1085,7 +1053,6 @@ function setLearningArea(v) {
     sel.querySelectorAll('option[data-legacy]').forEach(o => o.remove());
     const val = normalizeLearningArea(v);
     if (val && ![...sel.options].some(o => o.value === val)) {
-        // ค่าที่ไม่อยู่ในรายการ: เพิ่มเป็นตัวเลือกชั่วคราว เพื่อไม่ให้ข้อมูลหาย
         const opt = document.createElement('option');
         opt.value = val; opt.textContent = val + ' (ค่าเดิม)'; opt.dataset.legacy = '1';
         sel.appendChild(opt);
@@ -1160,7 +1127,6 @@ async function savePersonnel(e) {
         return;
     }
 
-    // ✅ ตรวจสอบสิทธิ์แก้ไข
     const editId = document.getElementById('edit-id').value;
     const targetId = editId || userId;
     if (!canEditRecord(targetId)) {
@@ -1536,15 +1502,10 @@ function renderInfoBlocks(data) {
 }
 
 /* ── Birthday Notification ── */
-// ✅ Cache ข้อมูลวันเกิดไว้ใช้แสดง modal
 let _birthdayCache = { today: [], upcoming: [] };
-// =====================================================
-// 🔒 Birthday helpers — timezone-safe (ล้วนเป็น UTC)
-// =====================================================
 const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
-// แยก Y/M/D จาก string โดยไม่ผ่าน Date/Timezone
 function _parseBirthParts(birthDate) {
     if (!birthDate) return null;
     const s = String(birthDate).trim().split('T')[0].split(' ')[0];
@@ -1557,7 +1518,6 @@ function _parseBirthParts(birthDate) {
     return { year: y, month: m, day: d };
 }
 
-// ระยะห่างวันจากวันนี้ (local) ถึงวันเกิดปีนี้ — คำนวณล้วนด้วย Date.UTC
 function _calendarDayDiff(birthDate, today) {
     const bp = _parseBirthParts(birthDate);
     if (!bp) return null;
@@ -1566,7 +1526,6 @@ function _calendarDayDiff(birthDate, today) {
     return Math.round(diffMs / 86400000);
 }
 
-// แสดง "D MMMM" แบบไทย โดยไม่พึ่ง dayjs locale
 function _formatThaiBirthDate(birthDate) {
     const bp = _parseBirthParts(birthDate);
     if (!bp) return '-';
@@ -1625,9 +1584,6 @@ function updateBirthdayNotification() {
     el.classList.add('animated');
 }
 
-// ==========================================
-// ✅ Modal แสดงรายชื่อผู้มีวันเกิด
-// ==========================================
 function openBirthdayModal() {
     const { today: birthdayToday, upcoming } = _birthdayCache;
 
@@ -1641,7 +1597,6 @@ function openBirthdayModal() {
 
     let html = '';
 
-    // ✅ ส่วนที่ 1: วันเกิดวันนี้
     if (birthdayToday.length > 0) {
         html += `
             <div class="mb-5">
@@ -1672,9 +1627,7 @@ function openBirthdayModal() {
         `;
     }
 
-    // ✅ ส่วนที่ 2: วันเกิดที่กำลังจะมาถึง (≤ 7 วัน) จัดกลุ่มตามวัน
     if (upcoming.length > 0) {
-        // จัดกลุ่มตาม days
         const grouped = {};
         upcoming.forEach(item => {
             if (!grouped[item.days]) grouped[item.days] = [];
@@ -1704,7 +1657,6 @@ function openBirthdayModal() {
                             </div>
                             <div class="divide-y divide-slate-100 bg-white">
                                 ${grouped[days].map(p => {
-            // 🔒 Parse วันเกิดตรงๆ จาก string — ไม่ผ่าน dayjs/Date → ไม่เพี้ยน
             const dateStr = _formatThaiBirthDate(p.birth_date);
             return `
         <div class="flex items-center gap-3 p-2.5">
@@ -1744,14 +1696,18 @@ function exportToExcel() {
     const exportData = isTeacher() || forceTeacherMode ? allPersonnelData.filter(p => p.id === currentProfile?.id) : allPersonnelData;
 
     if (!exportData.length) return Swal.fire('ไม่มีข้อมูล', '', 'info');
+    const pa3Config = getPA3Config();
     const be = iso => isoToBE(iso) || '-';
+
     const rows = exportData.map(p => {
         const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
         let retire = '-';
         if (p.birth_date) { const b = dayjs(p.birth_date); let ry = b.year() + 60; if (b.month() > 8) ry++; retire = ry + 543; }
         const govY = p.government_start_date ? dayjs().diff(dayjs(p.government_start_date), 'year') : '-';
         const pa = p.pa_docs || {};
-        return {
+
+        // ✅ สร้าง object ด้วย dynamic PA3 columns
+        const row = {
             'ชื่อ - สกุล': fullName,
             'เลขประจำตัวประชาชน': p.national_id || '',
             'ตำแหน่ง': p.position || '',
@@ -1767,13 +1723,12 @@ function exportToExcel() {
             'หมดอายุใบอนุญาต (พ.ศ.)': be(p.license_expiry),
             'เบอร์โทร': p.phone || '',
             'อีเมล': p.email || '',
-            'ไฟล์ PA3-2565': pa.pa_2565 || '',
-            'ไฟล์ PA3-2566': pa.pa_2566 || '',
-            'ไฟล์ PA3-2567': pa.pa_2567 || '',
-            'ไฟล์ PA3-2568': pa.pa_2568 || '',
-            'ไฟล์ PA3-2569': pa.pa_2569 || '',
-            'ไฟล์ PA3-2570': pa.pa_2570 || '',
         };
+        // ✅ เพิ่มคอลัมน์ PA3 ตาม config
+        pa3Config.forEach(cfg => {
+            row[`ไฟล์ PA3-${cfg.year}`] = pa[cfg.id] || '';
+        });
+        return row;
     });
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = Object.keys(rows[0]).map(k => ({ wch: Math.max(k.length + 2, 16) }));
@@ -1782,30 +1737,45 @@ function exportToExcel() {
     XLSX.writeFile(wb, `WRK_Personnel_${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.xlsx`);
 }
 
-/* ── DOWNLOAD TEMPLATE ──────── */
-function downloadTemplate() {
-    const headers = [
-        'ชื่อ - สกุล', 'เลขประจำตัวประชาชน', 'ตำแหน่ง', 'วิทยฐานะ', 'อันดับ', 'เลขที่ตำแหน่ง',
-        'กลุ่มสาระฯ', 'วันเกิด (พ.ศ.)', 'วันบรรจุรับราชการ (พ.ศ.)', 'วันแต่งตั้งตำแหน่งปัจจุบัน (พ.ศ.)',
-        'สถานะ PA', 'เลขที่ใบอนุญาต', 'หมดอายุใบอนุญาต (พ.ศ.)', 'เบอร์โทร', 'อีเมล',
-        'ไฟล์ PA3-2565', 'ไฟล์ PA3-2566', 'ไฟล์ PA3-2567', 'ไฟล์ PA3-2568', 'ไฟล์ PA3-2569', 'ไฟล์ PA3-2570'
-    ];
-    const note = [
-        '** วันที่ใส่รูปแบบ วว/ดด/ปปปป (พ.ศ.) เช่น 15/06/2528 **',
-        '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''
-    ];
-    const example = [
-        'นายสมชาย ใจดี', '1234567890123', 'ครู', 'ครูชำนาญการ', 'คศ.2', '4301', 'คณิตศาสตร์',
-        '15/06/2528', '01/05/2553', '01/10/2561',
-        'กำลังดำเนินการ', 'ค.12345', '31/03/2570', '0812345678', 'somchai@school.ac.th',
-        'https://drive.google.com/...', '', '', '', '', ''
-    ];
+/* ═══════════════════════════════════════════════════════════
+   ✅ DOWNLOAD TEMPLATE (dynamic ตาม importMode)
+   ═══════════════════════════════════════════════════════════ */
+function downloadTemplate(mode = null) {
+    const importMode = mode || window._importMode || { mode: 'full' };
+    const pa3Config = getPA3Config();
+
+    let headers, example, note;
+
+    if (importMode.mode === 'pa3-only' && importMode.pa3Year) {
+        const y = importMode.pa3Year;
+        headers = ['ชื่อ - สกุล', `ไฟล์ PA3-${y}`];
+        note = ['** วางลิงก์ Google Drive / URL ของเอกสาร PA3 **', ''];
+        example = ['นายสมชาย ใจดี', 'https://drive.google.com/file/d/xxxxx/view'];
+    } else {
+        const pa3Cols = pa3Config.map(c => `ไฟล์ PA3-${c.year}`);
+        headers = [
+            'ชื่อ - สกุล', 'เลขประจำตัวประชาชน', 'ตำแหน่ง', 'วิทยฐานะ', 'อันดับ', 'เลขที่ตำแหน่ง',
+            'กลุ่มสาระฯ', 'วันเกิด (พ.ศ.)', 'วันบรรจุรับราชการ (พ.ศ.)', 'วันแต่งตั้งตำแหน่งปัจจุบัน (พ.ศ.)',
+            'สถานะ PA', 'เลขที่ใบอนุญาต', 'หมดอายุใบอนุญาต (พ.ศ.)', 'เบอร์โทร', 'อีเมล',
+            ...pa3Cols
+        ];
+        note = [
+            '** วันที่ใส่รูปแบบ วว/ดด/ปปปป (พ.ศ.) เช่น 15/06/2528 **',
+            ...Array(headers.length - 1).fill('')
+        ];
+        example = [
+            'นายสมชาย ใจดี', '1234567890123', 'ครู', 'ครูชำนาญการ', 'คศ.2', '4301', 'คณิตศาสตร์',
+            '15/06/2528', '01/05/2553', '01/10/2561',
+            'กำลังดำเนินการ', 'ค.12345', '31/03/2570', '0812345678', 'somchai@school.ac.th',
+            ...pa3Cols.map((_, i) => i === 0 ? 'https://drive.google.com/...' : '')
+        ];
+    }
+
     const ws = XLSX.utils.aoa_to_sheet([headers, note, example]);
     ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 4, 20) }));
 
-    const dateCols = [7, 8, 9, 12];
-    const totalRows = 3;
-    for (let r = 0; r < totalRows; r++) {
+    const dateCols = importMode.mode === 'full' ? [7, 8, 9, 12] : [];
+    for (let r = 0; r < 3; r++) {
         dateCols.forEach(ci => {
             const addr = XLSX.utils.encode_cell({ r, c: ci });
             if (ws[addr]) { ws[addr].t = 's'; ws[addr].z = '@'; }
@@ -1814,11 +1784,135 @@ function downloadTemplate() {
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'บุคลากร');
-    XLSX.writeFile(wb, 'WRK_Personnel_Template.xlsx');
+    const fileName = importMode.mode === 'pa3-only'
+        ? `WRK_Personnel_PA3_${importMode.pa3Year}_Template.xlsx`
+        : 'WRK_Personnel_Template.xlsx';
+    XLSX.writeFile(wb, fileName);
 }
 
-/* ── processImportRows: shared logic ── */
-async function processImportRows(rows, foundHeaders) {
+/* ═══════════════════════════════════════════════════════════
+   ✅ NEW: Import Mode Selection Modal
+   ═══════════════════════════════════════════════════════════ */
+async function showImportModeModal() {
+    if (!requireAdmin(currentProfile?.role, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่นำเข้าข้อมูลได้')) return;
+
+    const pa3Config = getPA3Config();
+
+    if (pa3Config.length === 0) {
+        return Swal.fire({
+            icon: 'warning',
+            title: 'ยังไม่มีปีงบประมาณ PA3',
+            html: `<p class="text-sm text-slate-600">กรุณาไปที่ <b>⚙️ ตั้งค่าระบบ</b> เพื่อเพิ่มปีงบประมาณ PA3 ก่อนนำเข้า</p>`,
+            confirmButtonText: 'ไปตั้งค่า',
+            showCancelButton: true,
+            cancelButtonText: 'ยกเลิก'
+        }).then(r => { if (r.isConfirmed) openSettings(); });
+    }
+
+    const yearOptions = pa3Config.map(item =>
+        `<option value="${item.id}" data-year="${item.year}">${item.label || 'ปีงบประมาณ ' + item.year}</option>`
+    ).join('');
+
+    const { value: mode } = await Swal.fire({
+        title: '<i class="fas fa-file-import text-amber-500 mr-2"></i>เลือกโหมดนำเข้าข้อมูล',
+        html: `
+            <div class="text-left space-y-3">
+                <p class="text-sm text-slate-600">กรุณาเลือกว่าจะนำเข้าข้อมูลแบบใด</p>
+
+                <label class="flex items-start gap-3 p-3 border-2 border-indigo-200 rounded-xl cursor-pointer hover:bg-indigo-50 transition" id="mode-full-label">
+                    <input type="radio" name="import-mode" value="full" checked class="mt-1 accent-indigo-600">
+                    <div class="flex-1">
+                        <p class="font-bold text-sm text-indigo-700"><i class="fas fa-database mr-1"></i> นำเข้าข้อมูลทั้งหมด</p>
+                        <p class="text-xs text-slate-500 mt-1">อัปเดตทุกฟิลด์ (ตำแหน่ง, วิทยฐานะ, วันที่, ใบอนุญาต, PA3 ทุกปี ฯลฯ)</p>
+                        <p class="text-[10px] text-amber-600 mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>ข้อมูลเดิมจะถูกเขียนทับทั้งหมด</p>
+                    </div>
+                </label>
+
+                <label class="flex items-start gap-3 p-3 border-2 border-emerald-200 rounded-xl cursor-pointer hover:bg-emerald-50 transition" id="mode-pa3-label">
+                    <input type="radio" name="import-mode" value="pa3-only" class="mt-1 accent-emerald-600">
+                    <div class="flex-1">
+                        <p class="font-bold text-sm text-emerald-700"><i class="fas fa-folder-open mr-1"></i> นำเข้าเฉพาะ PA3</p>
+                        <p class="text-xs text-slate-500 mt-1">อัปเดตเฉพาะลิงก์เอกสาร PA3 ของปีที่เลือก ไม่กระทบข้อมูลอื่น</p>
+                        <div class="mt-2">
+                            <select id="swal-pa3-year" disabled
+                                class="w-full text-xs p-2 border border-slate-300 rounded-lg outline-none focus:border-emerald-500 bg-white">
+                                ${yearOptions}
+                            </select>
+                        </div>
+                    </div>
+                </label>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-arrow-right mr-1"></i> ถัดไป',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#6366f1',
+        focusConfirm: false,
+        didOpen: () => {
+            document.querySelectorAll('input[name="import-mode"]').forEach(radio => {
+                radio.addEventListener('change', e => {
+                    const sel = document.getElementById('swal-pa3-year');
+                    sel.disabled = e.target.value !== 'pa3-only';
+                    document.getElementById('mode-full-label').classList.toggle('border-indigo-500', e.target.value === 'full');
+                    document.getElementById('mode-full-label').classList.toggle('bg-indigo-50', e.target.value === 'full');
+                    document.getElementById('mode-pa3-label').classList.toggle('border-emerald-500', e.target.value === 'pa3-only');
+                    document.getElementById('mode-pa3-label').classList.toggle('bg-emerald-50', e.target.value === 'pa3-only');
+                });
+            });
+            // default: full mode → highlight
+            document.getElementById('mode-full-label').classList.add('border-indigo-500', 'bg-indigo-50');
+        },
+        preConfirm: () => {
+            const selectedMode = document.querySelector('input[name="import-mode"]:checked').value;
+            const pa3Sel = document.getElementById('swal-pa3-year');
+            return {
+                mode: selectedMode,
+                pa3Id: selectedMode === 'pa3-only' ? pa3Sel.value : null,
+                pa3Year: selectedMode === 'pa3-only' ? parseInt(pa3Sel.options[pa3Sel.selectedIndex].dataset.year) : null,
+                pa3Label: selectedMode === 'pa3-only' ? pa3Sel.options[pa3Sel.selectedIndex].text : null
+            };
+        }
+    });
+
+    if (!mode) return;
+
+    window._importMode = mode;
+
+    // ✅ หน้ายืนยัน + auto download template
+    const { isConfirmed } = await Swal.fire({
+        title: `<i class="fas fa-download text-indigo-500 mr-2"></i>ดาวน์โหลดไฟล์ต้นแบบ`,
+        html: `
+            <div class="text-left text-sm space-y-2">
+                <p class="text-slate-600">โหมดที่เลือก: <b class="text-indigo-600">${mode.mode === 'full' ? 'นำเข้าทั้งหมด' : 'เฉพาะ PA3 — ' + mode.pa3Label}</b></p>
+                <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-700">
+                    <p class="font-bold mb-1"><i class="fas fa-info-circle mr-1"></i> ขั้นตอน:</p>
+                    <p>1. ดาวน์โหลดไฟล์ต้นแบบ</p>
+                    <p>2. กรอกข้อมูลในไฟล์ Excel</p>
+                    <p>3. กดปุ่ม "อัปโหลดไฟล์" เพื่อเลือกไฟล์</p>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-file-excel mr-1"></i> ดาวน์โหลด Template & เลือกไฟล์',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#10b981',
+        didOpen: () => {
+            downloadTemplate(mode);
+        }
+    });
+
+    if (!isConfirmed) return;
+
+    document.getElementById('excel-import-input').click();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ✅ processImportRows: รองรับทั้ง full mode และ pa3-only mode
+   ═══════════════════════════════════════════════════════════ */
+async function processImportRows(rows, foundHeaders, importMode = null) {
+    const mode = importMode || window._importMode || { mode: 'full' };
+    const pa3Config = getPA3Config();
+
     const pad2 = n => String(n).padStart(2, '0');
 
     function forceCE(y, m, d) {
@@ -1872,6 +1966,18 @@ async function processImportRows(rows, foundHeaders) {
         const combined = gv(row, 'ชื่อ - สกุล', 'ชื่อ-สกุล', 'ชื่อ-นามสกุล', 'full_name');
         if (combined) { const sp = splitFullName(combined); prefix = sp.prefix; first_name = sp.first_name; last_name = sp.last_name; }
         else { prefix = gv(row, 'คำนำหน้า (prefix)', 'prefix', 'คำนำหน้า') || ''; first_name = gv(row, 'ชื่อจริง (first_name)*', 'first_name', 'ชื่อจริง', 'ชื่อ') || ''; last_name = gv(row, 'นามสกุล (last_name)*', 'last_name', 'นามสกุล') || ''; }
+
+        if (mode.mode === 'pa3-only' && mode.pa3Year) {
+            const pa3Key = `pa_${mode.pa3Year}`;
+            const pa3Value = gv(row, `ไฟล์ PA3-${mode.pa3Year}`, `PA3-${mode.pa3Year}`);
+            return {
+                first_name, last_name, prefix,
+                _pa3Only: true,
+                _pa3Key: pa3Key,
+                _pa3Value: pa3Value || null
+            };
+        }
+
         let position = '', academic_standing = '', position_number = '', rank = '';
         const posRaw = gv(row, 'ตำแหน่งวิทยฐานะตำแหน่งเลขที่อันดับ', 'ตำแหน่ง/วิทยฐานะ');
         if (posRaw) {
@@ -1887,14 +1993,18 @@ async function processImportRows(rows, foundHeaders) {
         academic_standing = gv(row, 'วิทยฐานะ', 'academic_standing') || academic_standing;
         position_number = gv(row, 'เลขที่ตำแหน่ง', 'position_number') || position_number;
         rank = gv(row, 'อันดับ', 'rank') || rank;
+
         let phone = '';
         const pr = gv(row, 'เบอร์โทรศัพท์อายุ', 'เบอร์โทรศัพท์', 'เบอร์โทร', 'phone');
         if (pr) { const m = pr.match(/0\d[\d\s-]{7,}/); phone = m ? m[0].replace(/[\s-]/g, '') : pr.split(/\s+/)[0]; }
+
         return {
             first_name, last_name, prefix,
             national_id: gv(row, 'เลขประจำตัวประชาชน', 'national_id'),
-            position: position || null, position_number: position_number || null,
-            academic_standing: academic_standing || null, rank: rank || null,
+            position: position || null,
+            position_number: position_number || null,
+            academic_standing: academic_standing || null,
+            rank: rank || null,
             department: gv(row, 'กลุ่มสาระการเรียนรู้', 'กลุ่มสาระฯ', 'กลุ่มสาระ', 'department'),
             phone: phone || null,
             birth_date: parseDate(gv(row, 'วันเกิด (พ.ศ.)', 'วันเดือนปีเกิด (พ.ศ.)', 'วันเกิด YYYY-MM-DD', 'birth_date', 'วันเกิด')),
@@ -1903,7 +2013,16 @@ async function processImportRows(rows, foundHeaders) {
             license_number: gv(row, 'เลขที่ใบอนุญาต', 'license_number'),
             license_expiry: parseDate(gv(row, 'หมดอายุใบอนุญาต (พ.ศ.)', 'วันหมดอายุใบอนุญาตฯ (พ.ศ.)', 'วันหมดอายุใบอนุญาต YYYY-MM-DD', 'license_expiry')),
             pa_status: gv(row, 'สถานะ PA', 'pa_status'),
-            pa_docs: (() => { const pa = {};[2565, 2566, 2567, 2568, 2569, 2570].forEach(y => { const v = gv(row, `ไฟล์ PA3-${y}`, `PA3-${y}`); if (v && v !== '0' && v !== 0) pa[`pa_${y}`] = v; }); return Object.keys(pa).length ? pa : null; })()
+            pa_docs: (() => {
+                const pa = {};
+                pa3Config.forEach(cfg => {
+                    const v = gv(row, `ไฟล์ PA3-${cfg.year}`, `PA3-${cfg.year}`);
+                    if (v && v !== '0' && v !== 0 && String(v).trim()) {
+                        pa[cfg.id] = String(v).trim();
+                    }
+                });
+                return Object.keys(pa).length ? pa : null;
+            })()
         };
     }).filter(p => p.first_name);
 
@@ -1935,6 +2054,116 @@ async function processImportRows(rows, foundHeaders) {
         if (id) matched.push({ ...p, id }); else unmatched.push(p);
     });
 
+    // ═══════════════════════════════════════════════════════════════
+    // ✅ Helper: Render unmatched list (ใช้ทั้ง 2 mode)
+    // ═══════════════════════════════════════════════════════════════
+    const renderUnmatchedPreview = () => {
+        if (unmatched.length === 0) return '';
+        return `
+            <details class="bg-amber-50 border border-amber-200 rounded-lg overflow-hidden">
+                <summary class="text-xs text-amber-700 font-bold p-2 cursor-pointer hover:bg-amber-100 transition select-none">
+                    ⚠️ รายการที่ไม่พบในระบบ: ${unmatched.length} รายการ (คลิกเพื่อดูรายชื่อ)
+                </summary>
+                <div class="max-h-40 overflow-y-auto divide-y divide-amber-100 bg-white">
+                    ${unmatched.map((p, idx) => `
+                        <div class="flex items-center gap-2 px-2.5 py-1.5 text-xs">
+                            <span class="font-bold text-amber-500 flex-shrink-0 w-5">${idx + 1}.</span>
+                            <span class="text-slate-700 truncate flex-1">${p.prefix || ''}${p.first_name} ${p.last_name}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </details>`;
+    };
+
+    const renderUnmatchedResult = () => {
+        if (unmatched.length === 0) return '';
+        return `
+            <details class="mt-2 bg-amber-50 border border-amber-200 rounded-lg overflow-hidden">
+                <summary class="text-xs text-amber-700 font-bold p-2 cursor-pointer hover:bg-amber-100 transition select-none">
+                    ⚠️ ข้ามไป ${unmatched.length} รายการ (ไม่พบในระบบ) — คลิกดูรายชื่อ
+                </summary>
+                <div class="max-h-48 overflow-y-auto divide-y divide-amber-100 bg-white">
+                    ${unmatched.map((p, idx) => `
+                        <div class="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-amber-50 transition">
+                            <span class="font-bold text-amber-500 flex-shrink-0 w-5">${idx + 1}.</span>
+                            <span class="text-slate-700 truncate flex-1">${p.prefix || ''}${p.first_name} ${p.last_name}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </details>`;
+    };
+
+    // ═══════════════════════════════════════════════════════════════
+    // ✅ PA3-ONLY MODE
+    // ═══════════════════════════════════════════════════════════════
+    if (mode.mode === 'pa3-only') {
+        const confirmRes = await Swal.fire({
+            title: `<i class="fas fa-folder-open text-emerald-500 mr-2"></i>ยืนยันนำเข้า PA3`,
+            html: `<div class="text-left text-sm space-y-2">
+                <p>ปีที่นำเข้า: <b class="text-emerald-600">${mode.pa3Label}</b></p>
+                <div class="flex gap-3">
+                    <div class="flex-1 bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+                        <p class="text-2xl font-bold text-green-600">${matched.length}</p>
+                        <p class="text-xs text-green-700 font-bold">จับคู่ได้</p>
+                    </div>
+                    <div class="flex-1 bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
+                        <p class="text-2xl font-bold text-amber-600">${unmatched.length}</p>
+                        <p class="text-xs text-amber-700 font-bold">ไม่พบ → ข้าม</p>
+                    </div>
+                </div>
+                ${renderUnmatchedPreview()}
+                <p class="text-xs text-slate-400">⚠️ ข้อมูลฟิลด์อื่นจะไม่ถูกแตะต้อง</p>
+            </div>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#10b981',
+            confirmButtonText: `อัปเดต PA3 ${matched.length} รายการ`,
+            cancelButtonText: 'ยกเลิก'
+        });
+        if (!confirmRes.isConfirmed || matched.length === 0) return;
+
+        Swal.fire({ title: `กำลังอัปเดต 0/${matched.length}...`, allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
+        let success = 0, failed = 0, errors = [];
+
+        for (let i = 0; i < matched.length; i++) {
+            const { id, first_name, last_name, prefix, _pa3Key, _pa3Value, _pa3Only, ...rest } = matched[i];
+            if (i % 10 === 0) Swal.update({ title: `กำลังอัปเดต ${i}/${matched.length}...` });
+
+            const { data: existing, error: selErr } = await db.from('core_personnel')
+                .select('pa_docs').eq('id', id).single();
+            if (selErr) { failed++; errors.push(`${prefix}${first_name} ${last_name}: ${selErr.message}`); continue; }
+
+            const existingDocs = existing?.pa_docs || {};
+            const mergedDocs = { ...existingDocs };
+            if (_pa3Value) {
+                mergedDocs[_pa3Key] = _pa3Value;
+            } else {
+                delete mergedDocs[_pa3Key];
+            }
+
+            const { error } = await db.from('core_personnel').update({ pa_docs: mergedDocs }).eq('id', id);
+            if (error) { failed++; errors.push(`${prefix}${first_name} ${last_name}: ${error.message}`); }
+            else success++;
+        }
+        Swal.close();
+
+        await logUserAction(`นำเข้า PA3 ${mode.pa3Year} (สำเร็จ ${success}, ล้มเหลว ${failed})`, 'personnel');
+
+        let html = `<div class="text-left text-sm space-y-1">
+            <p class="text-green-600 font-bold">✅ อัปเดต PA3 ${mode.pa3Year}: ${success} รายการ</p>
+            ${failed > 0 ? `<p class="text-red-500 font-bold">❌ ล้มเหลว: ${failed} รายการ</p>
+            <details><summary class="text-xs cursor-pointer text-slate-400">ดูรายละเอียด</summary>
+            <pre class="text-xs text-red-400 mt-1 max-h-24 overflow-y-auto">${errors.slice(0, 15).join('\n')}</pre></details>` : ''}
+            ${renderUnmatchedResult()}
+        </div>`;
+        await Swal.fire({ icon: failed === 0 ? 'success' : 'warning', title: 'ผลการนำเข้า PA3', html, width: 600 });
+        await loadPersonnelList();
+        return;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ✅ FULL MODE
+    // ═══════════════════════════════════════════════════════════════
     const confirmRes = await Swal.fire({
         title: `พบข้อมูล ${payloads.length} รายการ`,
         html: `<div class="text-left text-sm space-y-2">
@@ -1948,7 +2177,7 @@ async function processImportRows(rows, foundHeaders) {
                     <p class="text-xs text-amber-700 font-bold">ไม่พบในระบบ → ข้ามไป</p>
                 </div>
             </div>
-            ${unmatched.length > 0 ? `<p class="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-2 rounded-lg">⚠️ ไม่พบ: ${unmatched.slice(0, 5).map(p => `${p.prefix}${p.first_name} ${p.last_name}`).join(', ')}${unmatched.length > 5 ? ` ...+${unmatched.length - 5}` : ''}</p>` : ''}
+            ${renderUnmatchedPreview()}
             ${matched.length > 0 ? `<p class="text-xs text-slate-400">ตัวอย่าง: <b>${matched[0].prefix}${matched[0].first_name} ${matched[0].last_name}</b> | ${matched[0].position || '-'} | ${matched[0].birth_date || '(ไม่มีวันเกิด)'}</p>` : ''}
         </div>`,
         icon: 'question', showCancelButton: true,
@@ -1976,32 +2205,36 @@ async function processImportRows(rows, foundHeaders) {
         ${failed > 0 ? `<p class="text-red-500 font-bold">❌ ล้มเหลว: ${failed} รายการ</p>
         <details><summary class="text-xs cursor-pointer text-slate-400">ดูรายละเอียด</summary>
         <pre class="text-xs text-red-400 mt-1 max-h-24 overflow-y-auto">${errors.slice(0, 15).join('\n')}</pre></details>` : ''}
-        ${unmatched.length > 0 ? `<p class="text-amber-600 text-xs mt-2">⚠️ ข้ามไป: ${unmatched.length} รายการ (ไม่พบในระบบ)</p>` : ''}
+        ${renderUnmatchedResult()}
     </div>`;
-    await Swal.fire({ icon: failed === 0 ? 'success' : 'warning', title: 'ผลการนำเข้า', html });
+    await Swal.fire({ icon: failed === 0 ? 'success' : 'warning', title: 'ผลการนำเข้า', html, width: 600 });
     await loadPersonnelList();
 }
 
-/* ── IMPORT FROM GOOGLE SHEETS ── */
+/* ═══════════════════════════════════════════════════════════
+   ✅ IMPORT FROM GOOGLE SHEETS — เรียกใช้ showImportModeModal ก่อน
+   ═══════════════════════════════════════════════════════════ */
 async function importFromGoogleSheets() {
-    if (!requireAdmin(currentProfile?.role, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่นำเข้าข้อมูลได้')) {
-        return;
-    }
+    if (!requireAdmin(currentProfile?.role, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่นำเข้าข้อมูลได้')) return;
+
+    // ✅ เรียก modal เลือกโหมดก่อน
+    await showImportModeModal();
+
+    if (!window._importMode) return;
 
     const { value: sheetUrl } = await Swal.fire({
         title: '<i class="fab fa-google-drive text-green-600 mr-2"></i>นำเข้าจาก Google Sheets',
         html: `<div class="text-left text-sm space-y-3">
-            <p class="text-slate-600">วาง URL ของ Google Sheets ที่ต้องการนำเข้า</p>
+            <p class="text-slate-600">โหมด: <b class="text-indigo-600">${window._importMode.mode === 'full' ? 'นำเข้าทั้งหมด' : 'เฉพาะ PA3 — ' + window._importMode.pa3Label}</b></p>
             <input id="swal-sheet-url" type="text"
                 placeholder="https://docs.google.com/spreadsheets/d/..."
                 class="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:border-green-500 text-sm">
             <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 space-y-1">
                 <p class="font-bold">⚠️ ข้อกำหนด:</p>
                 <p>1. ต้องตั้งค่าการแชร์ชีตเป็น <b>"ทุกคนที่มีลิงก์"</b></p>
-                <p>2. ใช้โครงสร้างตามไฟล์ต้นแบบ (ดาวน์โหลดจากปุ่มซ้ายมือ)</p>
+                <p>2. ใช้โครงสร้างตามไฟล์ต้นแบบ</p>
                 <p>3. ชีตแรกเท่านั้นที่จะถูกนำเข้า</p>
             </div>
-            <p class="text-[10px] text-slate-400">วันที่ใน Google Sheets จะถูกอ่านเป็น Text ตรงๆ ไม่มีปัญหา Auto-convert</p>
         </div>`,
         showCancelButton: true,
         confirmButtonText: 'นำเข้าข้อมูล',
@@ -2047,7 +2280,7 @@ async function importFromGoogleSheets() {
             return obj;
         });
 
-        await processImportRows(objRows, headers);
+        await processImportRows(objRows, headers, window._importMode);
 
     } catch (err) {
         Swal.close();
@@ -2094,7 +2327,9 @@ function parseCsv(text) {
     return rows;
 }
 
-/* ── IMPORT FROM EXCEL ──────── */
+/* ═══════════════════════════════════════════════════════════
+   ✅ IMPORT FROM EXCEL — ส่ง importMode ที่เลือกไว้
+   ═══════════════════════════════════════════════════════════ */
 async function importFromExcel(event) {
     const file = event.target.files[0]; if (!file) return;
 
@@ -2112,7 +2347,8 @@ async function importFromExcel(event) {
             const rows = XLSX.utils.sheet_to_json(ws, { defval: '', cellDates: true, raw: true });
             if (!rows.length) return Swal.fire('ไฟล์ว่างเปล่า', 'ไม่พบข้อมูลในชีตแรก', 'warning');
             const headers = Object.keys(rows[0]);
-            await processImportRows(rows, headers);
+            // ✅ ส่ง mode ที่เลือกไว้
+            await processImportRows(rows, headers, window._importMode);
         } catch (err) {
             Swal.close();
             Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
@@ -2218,6 +2454,7 @@ window.exportToExcel = exportToExcel;
 window.downloadTemplate = downloadTemplate;
 window.importFromExcel = importFromExcel;
 window.importFromGoogleSheets = importFromGoogleSheets;
+window.showImportModeModal = showImportModeModal;   // ✅ expose
 window.switchTab = switchTab;
 window.checkLicense = checkLicense;
 window.previewAvatar = previewAvatar;
@@ -2272,4 +2509,4 @@ window.logout = async function () {
     }
 };
 
-console.log('✅ personnel.js loaded (template-compliant + WRKModuleAdmin + refreshNavButtons)');
+console.log('✅ personnel.js loaded (import mode + dynamic PA3 config)');

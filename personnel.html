@@ -263,7 +263,7 @@
                                     class="fas fa-download text-slate-400"></i> ไฟล์ต้นแบบ</button>
                             <input type="file" id="excel-import-input" accept=".xlsx,.xls,.csv" class="hidden"
                                 onchange="importFromExcel(event)">
-                            <button id="btn-import" onclick="document.getElementById('excel-import-input').click()"
+                            <button id="btn-import" onclick="showImportModeModal()"
                                 class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-amber-100"><i
                                     class="fas fa-file-import"></i> นำเข้า Excel/CSV</button>
                             <button id="btn-import-sheets" onclick="importFromGoogleSheets()"
