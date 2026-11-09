@@ -1,7 +1,7 @@
 dayjs.locale('th');
 
 // ==========================================
-// 🚀 Bootstrap Module Admin (ต้องอยู่ก่อน init)
+// 🚀 Bootstrap Module Admin
 // ==========================================
 if (typeof WRKModuleAdmin !== 'undefined') {
     WRKModuleAdmin.bootstrap('personnel', 'personnel_auth_cache', 'isPersonnelModuleAdmin');
@@ -18,8 +18,16 @@ let actualIsAdmin = false;
 let moduleAdminChecked = false;
 let isModuleAdmin = false;
 
-// ✅ เก็บโหมดการนำเข้าที่ผู้ใช้เลือก (full | pa3-only)
+// ✅ Import mode
 window._importMode = null;
+
+// ✅ Status filter
+let _currentStatusFilter = 'all';
+
+// ✅ สถานะที่ซ่อนจากรายการ (ไม่แสดงผล)
+const HIDDEN_STATUSES = ['เกษียณอายุ', 'ย้าย', 'ลาออก'];
+// ✅ สถานะที่ห้าม login
+const BLOCKED_LOGIN_STATUSES = ['เกษียณอายุ', 'ย้าย', 'ลาออก'];
 
 // ==========================================
 // ROLE HELPERS
@@ -53,6 +61,22 @@ const canManagePersonnelSettings = () => {
 
 const canEditRecord = (id) => isAdmin() || currentProfile?.id === id;
 const canDelete = () => isSuperAdmin();
+
+/* ── Status Helpers ─────────── */
+const getStatusInfo = (status) => {
+    const map = {
+        'ปกติ': { icon: '🟢', label: 'ปกติ', class: 'status-badge green', dot: '#10b981' },
+        'ไปช่วยราชการ': { icon: '🟡', label: 'ไปช่วยราชการ', class: 'status-badge amber', dot: '#f59e0b' },
+        'เกษียณอายุ': { icon: '🟠', label: 'เกษียณอายุ', class: 'status-badge orange', dot: '#f97316' },
+        'ย้าย': { icon: '🔵', label: 'ย้ายสถานศึกษา', class: 'status-badge blue', dot: '#3b82f6' },
+        'ลาออก': { icon: '🔴', label: 'ลาออก', class: 'status-badge red', dot: '#ef4444' },
+    };
+    return map[status] || map['ปกติ'];
+};
+
+const isHiddenStatus = (status) => HIDDEN_STATUSES.includes(status);
+const isBlockedLoginStatus = (status) => BLOCKED_LOGIN_STATUSES.includes(status);
+const getPersonnelStatus = (p) => p?.personnel_status || 'ปกติ';
 
 /* ── Position Logic ─────────── */
 const posLogic = {
@@ -104,7 +128,7 @@ function switchTab(id, btn) {
 }
 
 // ==========================================
-// ✅ ปุ่มนำทาง — personnel
+// refreshNavButtons
 // ==========================================
 window.refreshNavButtons = function () {
     const role = window.currentUserRole || currentProfile?.role;
@@ -155,6 +179,26 @@ window.onload = async () => {
         window.currentProfile = currentProfile;
         window.currentUserId = currentUser.id;
         window.currentUserRole = currentProfile.role;
+
+        // ✅ ตรวจสอบสถานะบุคลากร — block login
+        const myStatus = currentProfile?.personnel_status || 'ปกติ';
+        if (BLOCKED_LOGIN_STATUSES.includes(myStatus)) {
+            await db.auth.signOut();
+            const labels = { 'เกษียณอายุ': 'เกษียณอายุ', 'ย้าย': 'ย้ายสถานศึกษา', 'ลาออก': 'ลาออก' };
+            await Swal.fire({
+                icon: 'error',
+                title: 'ไม่สามารถเข้าใช้งานได้',
+                html: `<div class="text-center">
+                    <p class="text-sm text-slate-600 mb-2">บัญชีของคุณมีสถานะ <b class="text-red-600">"${labels[myStatus] || myStatus}"</b></p>
+                    <p class="text-xs text-slate-400">กรุณาติดต่อผู้ดูแลระบบหากมีข้อผิดพลาด</p>
+                </div>`,
+                confirmButtonText: 'กลับหน้า Login',
+                confirmButtonColor: '#dc2626',
+                allowOutsideClick: false
+            });
+            window.location.replace('login.html');
+            return;
+        }
 
         setUserDisplayName(currentProfile);
         renderUserAvatar(currentProfile);
@@ -211,6 +255,10 @@ function applyRoleUI() {
     if (btnImport) btnImport.style.display = isUserAdmin ? '' : 'none';
     if (btnImportSheets) btnImportSheets.style.display = isUserAdmin ? '' : 'none';
     if (btnTemplate) btnTemplate.style.display = isUserAdmin ? '' : 'none';
+
+    // ✅ Filter bar แสดงเฉพาะ admin
+    const filterBar = document.getElementById('status-filter-bar');
+    if (filterBar) filterBar.style.display = isUserAdmin ? '' : 'none';
 
     updateCustomRoleLabel();
 
@@ -864,7 +912,7 @@ function clearAvatar() {
     setAvatar('avatar-display', name, null);
 }
 
-/* ── Upload Avatar to Google Drive via GAS ── */
+/* ── Upload Avatar ── */
 function blobToBase64(blob) {
     return new Promise((resolve) => {
         const reader = new FileReader();
@@ -968,6 +1016,29 @@ function checkLicense() {
     window.open(`https://www.ksp.or.th/ksp2018/license-check/?license=${encodeURIComponent(num)}`, '_blank');
 }
 
+/* ── Status Warning ─────────── */
+function updateStatusWarning(status) {
+    const warning = document.getElementById('status-warning');
+    const warningText = document.getElementById('status-warning-text');
+    if (!warning || !warningText) return;
+
+    if (isBlockedLoginStatus(status)) {
+        warningText.textContent = `บุคลากรที่มีสถานะ "${status}" จะถูกซ่อนจากรายการ และไม่สามารถ login เข้าระบบได้`;
+        warning.classList.remove('hidden');
+    } else {
+        warning.classList.add('hidden');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const statusSel = document.getElementById('sel-personnel-status');
+    if (statusSel) {
+        statusSel.addEventListener('change', e => {
+            updateStatusWarning(e.target.value);
+        });
+    }
+});
+
 /* ── Modal ──────────────────── */
 function resetHiddens() {
     _pendingAvatarFile = null;
@@ -977,6 +1048,13 @@ function resetHiddens() {
     ['out-age', 'out-retire', 'out-service-left', 'out-gov-service', 'out-pos-duration',
         'out-eligible', 'out-pa-countdown', 'out-license-status', 'inp-rank']
         .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    // ✅ Reset status dropdown
+    const statusSel = document.getElementById('sel-personnel-status');
+    if (statusSel) {
+        statusSel.value = 'ปกติ';
+        statusSel.disabled = !isSuperAdmin();
+        updateStatusWarning('ปกติ');
+    }
 }
 
 function openModal(mode, data = null) {
@@ -1018,7 +1096,7 @@ function isoToBE(iso) {
     return `${String(d.date()).padStart(2, '0')}/${String(d.month() + 1).padStart(2, '0')}/${d.year() + 543}`;
 }
 
-/* ── กลุ่มสาระการเรียนรู้ ── */
+/* ── Learning Area ── */
 const LEARNING_AREAS = [
     'ภาษาไทย', 'คณิตศาสตร์',
     'วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)',
@@ -1077,6 +1155,15 @@ function populateForm(p) {
     document.getElementById('inp-cid').value = p.national_id || '';
     document.getElementById('inp-phone').value = p.phone || '';
     setLearningArea(p.department);
+
+    // ✅ โหลดสถานะ + เปิดใช้เฉพาะ Super Admin
+    const statusSel = document.getElementById('sel-personnel-status');
+    if (statusSel) {
+        statusSel.value = getPersonnelStatus(p);
+        statusSel.disabled = !isSuperAdmin();
+        updateStatusWarning(getPersonnelStatus(p));
+    }
+
     document.getElementById('inp-position-number').value = p.position_number || '';
     document.getElementById('inp-license-number').value = p.license_number || '';
     document.getElementById('sel-pa-status').value = p.pa_status || '';
@@ -1140,6 +1227,9 @@ async function savePersonnel(e) {
     try {
         if (!targetId) throw new Error('กรุณาเลือกชื่อบุคลากร');
 
+        // ═══════════════════════════════════════════════════════════
+        // 1) อัปโหลดรูป (ถ้ามีไฟล์ค้างอยู่)
+        // ═══════════════════════════════════════════════════════════
         if (_pendingAvatarFile) {
             const driveUrl = await uploadFileToDrive(_pendingAvatarFile, targetId);
             if (driveUrl) {
@@ -1155,10 +1245,17 @@ async function savePersonnel(e) {
                     icon: 'warning', showCancelButton: true,
                     confirmButtonText: 'บันทึกแบบไม่มีรูป', cancelButtonText: 'ยกเลิก'
                 });
-                if (!r.isConfirmed) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-floppy-disk"></i> บันทึกข้อมูล'; return; }
+                if (!r.isConfirmed) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-floppy-disk"></i> บันทึกข้อมูล';
+                    return;
+                }
             }
         }
 
+        // ═══════════════════════════════════════════════════════════
+        // 2) สร้าง payload (ข้อมูลหลัก)
+        // ═══════════════════════════════════════════════════════════
         const payload = {
             national_id: document.getElementById('inp-cid').value.trim() || null,
             phone: document.getElementById('inp-phone').value.trim() || null,
@@ -1177,18 +1274,116 @@ async function savePersonnel(e) {
             avatar_url: document.getElementById('inp-avatar-data').value || null,
         };
 
+        // ═══════════════════════════════════════════════════════════
+        // 3) ✅ [แก้ไข] เพิ่ม personnel_status เข้า payload ก่อน
+        //    (เฉพาะ Super Admin เท่านั้นที่เปลี่ยนสถานะได้)
+        // ═══════════════════════════════════════════════════════════
+        if (isSuperAdmin()) {
+            const statusSel = document.getElementById('sel-personnel-status');
+            if (statusSel) {
+                payload.personnel_status = statusSel.value || 'ปกติ';
+                payload.status_changed_at = new Date().toISOString();
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 4) ✅ [แก้ไข] เตือนถ้า Super Admin เปลี่ยนสถานะ "ตัวเอง"
+        //    เป็น blocked status (เกษียณ/ย้าย/ลาออก)
+        //    — ตอนนี้ payload.personnel_status มีค่าแล้ว
+        // ═══════════════════════════════════════════════════════════
+        if (
+            isSuperAdmin() &&
+            payload.personnel_status !== undefined &&
+            targetId === currentUser?.id &&
+            BLOCKED_LOGIN_STATUSES.includes(payload.personnel_status)
+        ) {
+            const confirmResult = await Swal.fire({
+                icon: 'warning',
+                title: 'ยืนยันเปลี่ยนสถานะตัวเอง?',
+                html: `<div class="text-left text-sm space-y-2">
+                    <p>คุณกำลังเปลี่ยนสถานะของ<b>ตัวเอง</b>เป็น 
+                       <b class="text-red-600">"${payload.personnel_status}"</b></p>
+                    <div class="bg-red-50 border border-red-200 rounded-xl p-2.5 text-xs text-red-700">
+                        <p class="font-bold"><i class="fas fa-exclamation-triangle mr-1"></i> คำเตือน:</p>
+                        <p>• จะถูก logout ทันที</p>
+                        <p>• ไม่สามารถ login เข้าระบบได้อีก</p>
+                        <p>• จะถูกซ่อนจากรายการบุคลากร</p>
+                    </div>
+                    <p class="text-xs text-slate-400">หากต้องการแก้ไขภายหลัง ให้ Super Admin ท่านอื่นช่วยเปลี่ยนสถานะให้</p>
+                </div>`,
+                showCancelButton: true,
+                confirmButtonText: '<i class="fas fa-check mr-1"></i> ยืนยัน',
+                confirmButtonColor: '#dc2626',
+                cancelButtonText: 'ยกเลิก'
+            });
+            if (!confirmResult.isConfirmed) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-floppy-disk"></i> บันทึกข้อมูล';
+                return;
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 5) บันทึกข้อมูลลง DB
+        // ═══════════════════════════════════════════════════════════
         const { error } = await db.from('core_personnel').update(payload).eq('id', targetId);
         if (error) throw error;
 
+        // ═══════════════════════════════════════════════════════════
+        // 6) ดึงข้อมูล user "ก่อน" (เพื่อตรวจสถานะเดิม + log)
+        // ═══════════════════════════════════════════════════════════
         const user = allPersonnelData.find(u => u.id === targetId);
         const name = user ? `${user.prefix || ''}${user.first_name} ${user.last_name}` : targetId;
+
+        // ═══════════════════════════════════════════════════════════
+        // 7) ✅ ถ้าเปลี่ยนสถานะ → clear cache + broadcast tab อื่น
+        // ═══════════════════════════════════════════════════════════
+        if (isSuperAdmin() && payload.personnel_status !== undefined) {
+            const oldStatus = user?.personnel_status || 'ปกติ';
+            if (oldStatus !== payload.personnel_status) {
+                try {
+                    // Clear cache ถ้าเป็นของตัวเอง
+                    if (targetId === currentUser?.id) {
+                        if (typeof clearAuthPersonnelCache === 'function') clearAuthPersonnelCache();
+                    }
+                    // แจ้ง tab อื่นๆ (ถ้ามี)
+                    if (typeof BroadcastChannel !== 'undefined') {
+                        const bc = new BroadcastChannel('wrk_auth_sync');
+                        bc.postMessage({ type: 'cache_clear', userId: targetId });
+                        bc.close();
+                    }
+                } catch (e) {
+                    console.warn('Cache invalidation error:', e);
+                }
+
+                // ✅ Log การเปลี่ยนสถานะ (แยกจาก log ปกติ)
+                await logUserAction(
+                    `เปลี่ยนสถานะบุคลากร: ${name} (${oldStatus} → ${payload.personnel_status})`,
+                    'personnel'
+                );
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 8) Log การบันทึกทั่วไป
+        // ═══════════════════════════════════════════════════════════
         await logUserAction(`บันทึกข้อมูลบุคลากร: ${name}`, 'personnel');
 
-        await Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1600, showConfirmButton: false });
+        // ═══════════════════════════════════════════════════════════
+        // 9) ปิด Modal + reload list
+        // ═══════════════════════════════════════════════════════════
+        await Swal.fire({
+            icon: 'success',
+            title: 'บันทึกสำเร็จ!',
+            timer: 1600,
+            showConfirmButton: false
+        });
         closeModal();
         await loadPersonnelList();
+
     } catch (err) {
-        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+        console.error('savePersonnel error:', err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-floppy-disk"></i> บันทึกข้อมูล';
@@ -1223,6 +1418,15 @@ async function deletePersonnel(id, name) {
     await loadPersonnelList();
 }
 
+/* ── Filter by Status ───────── */
+function filterByStatus(status) {
+    _currentStatusFilter = status;
+    document.querySelectorAll('.status-filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.status === status);
+    });
+    loadPersonnelList();
+}
+
 /* ── LOAD LIST ──────────────── */
 async function loadPersonnelList() {
     let query = db.from('core_personnel').select('*').order('first_name');
@@ -1237,16 +1441,31 @@ async function loadPersonnelList() {
 
     let displayData = allPersonnelData;
     if (isTeacher() || forceTeacherMode) {
-        displayData = allPersonnelData.filter(p => p.id === currentProfile?.id);
+        displayData = allPersonnelData.filter(p =>
+            p.id === currentProfile?.id && !isHiddenStatus(getPersonnelStatus(p))
+        );
+    } else {
+        // ✅ Admin: filter ตามสถานะ
+        if (_currentStatusFilter === 'all') {
+            // "ทั้งหมด" = แสดงเฉพาะที่ไม่ถูกซ่อน
+            displayData = allPersonnelData.filter(p => !isHiddenStatus(getPersonnelStatus(p)));
+        } else {
+            // เลือกดูสถานะเฉพาะ
+            displayData = allPersonnelData.filter(p => getPersonnelStatus(p) === _currentStatusFilter);
+        }
     }
 
     const today = dayjs(), cyBE = today.year() + 543;
 
     displayData.forEach(p => {
         const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
+        const status = getPersonnelStatus(p);
+        const statusInfo = getStatusInfo(status);
+        const isBlocked = isHiddenStatus(status);
+
         const avHtml = p.avatar_url
-            ? `<img src="${p.avatar_url}" style="width:38px;height:38px;border-radius:10px;object-fit:cover;" onerror="this.style.display='none'">`
-            : `<div style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:#fff;background:${avColor(p.first_name)};flex-shrink:0;">${(p.first_name || '?').charAt(0)}</div>`;
+            ? `<img src="${p.avatar_url}" style="width:38px;height:38px;border-radius:10px;object-fit:cover;${isBlocked ? 'opacity:0.5;filter:grayscale(0.7);' : ''}" onerror="this.style.display='none'">`
+            : `<div style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:#fff;background:${avColor(p.first_name)};flex-shrink:0;${isBlocked ? 'opacity:0.5;' : ''}">${(p.first_name || '?').charAt(0)}</div>`;
 
         const ageY = p.birth_date ? dayjs().diff(dayjs(p.birth_date), 'year') : null;
 
@@ -1267,16 +1486,6 @@ async function loadPersonnelList() {
             govHtml = `<span class="text-slate-600 text-sm">${gy} ปี</span>`;
         }
 
-        const paMap = {
-            'ผ่าน': 'badge-blue',
-            'กำลังดำเนินการ': 'badge-orange',
-            'ไม่ผ่าน': 'badge-red',
-            'ยังไม่ดำเนินการ': 'badge-gray'
-        };
-        const paHtml = p.pa_status
-            ? `<span class="badge ${paMap[p.pa_status] || 'badge-gray'}">${p.pa_status}</span>`
-            : `<span class="text-slate-300 text-xs">-</span>`;
-
         let licHtml = '<span class="text-slate-400 text-xs">-</span>';
         if (p.license_expiry) {
             const dl = dayjs(p.license_expiry).diff(today, 'day');
@@ -1293,13 +1502,24 @@ async function loadPersonnelList() {
             ? `<button onclick="deletePersonnel('${p.id}','${fullName.replace(/'/g, "\\'")}')" class="h-8 w-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition flex items-center justify-center" title="ลบ"><i class="fas fa-trash text-xs"></i></button>`
             : '';
 
+        // ✅ Badge สถานะ (แสดงเฉพาะที่ไม่ใช่ "ปกติ")
+        const statusBadge = status !== 'ปกติ'
+            ? `<span class="${statusInfo.class}">
+                  <span style="width:6px;height:6px;border-radius:50%;background:${statusInfo.dot};"></span>
+                  ${statusInfo.label}
+               </span>`
+            : '';
+
         tbody.insertAdjacentHTML('beforeend', `
-            <tr class="hover:bg-indigo-50/40 transition-colors">
+            <tr class="hover:bg-indigo-50/40 transition-colors ${isBlocked ? 'opacity-70' : ''}">
                 <td class="py-3 px-3">
                     <div class="flex items-center gap-3">
                         ${avHtml}
                         <div>
-                            <p class="font-semibold text-slate-800 text-sm leading-tight">${fullName}</p>
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <p class="font-semibold text-slate-800 text-sm leading-tight">${fullName}</p>
+                                ${statusBadge}
+                            </div>
                             <p class="text-[10px] text-slate-400">${p.national_id || 'ไม่มีข้อมูล'}</p>
                             <p class="text-[10px] text-slate-400">${p.email || 'ไม่มีอีเมล'}</p>
                         </div>
@@ -1361,8 +1581,14 @@ function editPersonnel(id) {
 /* ── Dashboard ──────────────── */
 function updateDashboard(data) {
     const today = dayjs(), cyBE = today.year() + 543;
-    let retire = 0, lic = 0, eligible = 0;
+    let retire = 0, lic = 0, eligible = 0, hidden = 0;
+
     data.forEach(p => {
+        const status = getPersonnelStatus(p);
+        if (isHiddenStatus(status)) {
+            hidden++;
+            return;
+        }
         if (p.birth_date) {
             const b = dayjs(p.birth_date);
             let ry = b.year() + 60;
@@ -1377,11 +1603,16 @@ function updateDashboard(data) {
             if (today.diff(dayjs(p.appointment_date), 'year') >= 4) eligible++;
         }
     });
-    document.getElementById('stat-total').textContent = data.length;
+
+    document.getElementById('stat-total').textContent = data.length - hidden;
     document.getElementById('stat-retire').textContent = retire;
     document.getElementById('stat-license').textContent = lic;
     document.getElementById('stat-eligible').textContent = eligible;
-    renderInfoBlocks(data);
+
+    const statHidden = document.getElementById('stat-hidden');
+    if (statHidden) statHidden.textContent = hidden;
+
+    renderInfoBlocks(data.filter(p => !isHiddenStatus(getPersonnelStatus(p))));
 }
 
 /* ── Info Blocks ─────────────── */
@@ -1538,6 +1769,7 @@ function updateBirthdayNotification() {
     let upcoming = [];
 
     allPersonnelData.forEach(p => {
+        if (isHiddenStatus(getPersonnelStatus(p))) return;  // ✅ ไม่นับคนที่ซ่อน
         const diffDays = _calendarDayDiff(p.birth_date, today);
         if (diffDays === null) return;
 
@@ -1587,9 +1819,7 @@ function updateBirthdayNotification() {
 function openBirthdayModal() {
     const { today: birthdayToday, upcoming } = _birthdayCache;
 
-    if (birthdayToday.length === 0 && upcoming.length === 0) {
-        return;
-    }
+    if (birthdayToday.length === 0 && upcoming.length === 0) return;
 
     const modal = document.getElementById('birthday-modal');
     const content = document.getElementById('birthday-modal-content');
@@ -1693,7 +1923,18 @@ function closeBirthdayModal() {
 
 /* ── EXPORT EXCEL ───────────── */
 function exportToExcel() {
-    const exportData = isTeacher() || forceTeacherMode ? allPersonnelData.filter(p => p.id === currentProfile?.id) : allPersonnelData;
+    let exportData = isTeacher() || forceTeacherMode
+        ? allPersonnelData.filter(p => p.id === currentProfile?.id)
+        : allPersonnelData;
+
+    // ✅ Export ตาม filter
+    if (!isTeacher() && !forceTeacherMode) {
+        if (_currentStatusFilter === 'all') {
+            exportData = exportData.filter(p => !isHiddenStatus(getPersonnelStatus(p)));
+        } else {
+            exportData = exportData.filter(p => getPersonnelStatus(p) === _currentStatusFilter);
+        }
+    }
 
     if (!exportData.length) return Swal.fire('ไม่มีข้อมูล', '', 'info');
     const pa3Config = getPA3Config();
@@ -1706,9 +1947,9 @@ function exportToExcel() {
         const govY = p.government_start_date ? dayjs().diff(dayjs(p.government_start_date), 'year') : '-';
         const pa = p.pa_docs || {};
 
-        // ✅ สร้าง object ด้วย dynamic PA3 columns
         const row = {
             'ชื่อ - สกุล': fullName,
+            'สถานะ': getPersonnelStatus(p),
             'เลขประจำตัวประชาชน': p.national_id || '',
             'ตำแหน่ง': p.position || '',
             'วิทยฐานะ': p.academic_standing || '',
@@ -1724,7 +1965,6 @@ function exportToExcel() {
             'เบอร์โทร': p.phone || '',
             'อีเมล': p.email || '',
         };
-        // ✅ เพิ่มคอลัมน์ PA3 ตาม config
         pa3Config.forEach(cfg => {
             row[`ไฟล์ PA3-${cfg.year}`] = pa[cfg.id] || '';
         });
@@ -1737,9 +1977,7 @@ function exportToExcel() {
     XLSX.writeFile(wb, `WRK_Personnel_${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.xlsx`);
 }
 
-/* ═══════════════════════════════════════════════════════════
-   ✅ DOWNLOAD TEMPLATE (dynamic ตาม importMode)
-   ═══════════════════════════════════════════════════════════ */
+/* ── DOWNLOAD TEMPLATE ─────── */
 function downloadTemplate(mode = null) {
     const importMode = mode || window._importMode || { mode: 'full' };
     const pa3Config = getPA3Config();
@@ -1790,9 +2028,7 @@ function downloadTemplate(mode = null) {
     XLSX.writeFile(wb, fileName);
 }
 
-/* ═══════════════════════════════════════════════════════════
-   ✅ NEW: Import Mode Selection Modal
-   ═══════════════════════════════════════════════════════════ */
+/* ── IMPORT MODE MODAL ─────── */
 async function showImportModeModal() {
     if (!requireAdmin(currentProfile?.role, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่นำเข้าข้อมูลได้')) return;
 
@@ -1818,7 +2054,6 @@ async function showImportModeModal() {
         html: `
             <div class="text-left space-y-3">
                 <p class="text-sm text-slate-600">กรุณาเลือกว่าจะนำเข้าข้อมูลแบบใด</p>
-
                 <label class="flex items-start gap-3 p-3 border-2 border-indigo-200 rounded-xl cursor-pointer hover:bg-indigo-50 transition" id="mode-full-label">
                     <input type="radio" name="import-mode" value="full" checked class="mt-1 accent-indigo-600">
                     <div class="flex-1">
@@ -1827,7 +2062,6 @@ async function showImportModeModal() {
                         <p class="text-[10px] text-amber-600 mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>ข้อมูลเดิมจะถูกเขียนทับทั้งหมด</p>
                     </div>
                 </label>
-
                 <label class="flex items-start gap-3 p-3 border-2 border-emerald-200 rounded-xl cursor-pointer hover:bg-emerald-50 transition" id="mode-pa3-label">
                     <input type="radio" name="import-mode" value="pa3-only" class="mt-1 accent-emerald-600">
                     <div class="flex-1">
@@ -1859,7 +2093,6 @@ async function showImportModeModal() {
                     document.getElementById('mode-pa3-label').classList.toggle('bg-emerald-50', e.target.value === 'pa3-only');
                 });
             });
-            // default: full mode → highlight
             document.getElementById('mode-full-label').classList.add('border-indigo-500', 'bg-indigo-50');
         },
         preConfirm: () => {
@@ -1878,7 +2111,6 @@ async function showImportModeModal() {
 
     window._importMode = mode;
 
-    // ✅ หน้ายืนยัน + auto download template
     const { isConfirmed } = await Swal.fire({
         title: `<i class="fas fa-download text-indigo-500 mr-2"></i>ดาวน์โหลดไฟล์ต้นแบบ`,
         html: `
@@ -1906,9 +2138,7 @@ async function showImportModeModal() {
     document.getElementById('excel-import-input').click();
 }
 
-/* ═══════════════════════════════════════════════════════════
-   ✅ processImportRows: รองรับทั้ง full mode และ pa3-only mode
-   ═══════════════════════════════════════════════════════════ */
+/* ── processImportRows ─────── */
 async function processImportRows(rows, foundHeaders, importMode = null) {
     const mode = importMode || window._importMode || { mode: 'full' };
     const pa3Config = getPA3Config();
@@ -2054,9 +2284,6 @@ async function processImportRows(rows, foundHeaders, importMode = null) {
         if (id) matched.push({ ...p, id }); else unmatched.push(p);
     });
 
-    // ═══════════════════════════════════════════════════════════════
-    // ✅ Helper: Render unmatched list (ใช้ทั้ง 2 mode)
-    // ═══════════════════════════════════════════════════════════════
     const renderUnmatchedPreview = () => {
         if (unmatched.length === 0) return '';
         return `
@@ -2093,9 +2320,7 @@ async function processImportRows(rows, foundHeaders, importMode = null) {
             </details>`;
     };
 
-    // ═══════════════════════════════════════════════════════════════
-    // ✅ PA3-ONLY MODE
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════ PA3-ONLY MODE ═══════════
     if (mode.mode === 'pa3-only') {
         const confirmRes = await Swal.fire({
             title: `<i class="fas fa-folder-open text-emerald-500 mr-2"></i>ยืนยันนำเข้า PA3`,
@@ -2161,9 +2386,7 @@ async function processImportRows(rows, foundHeaders, importMode = null) {
         return;
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // ✅ FULL MODE
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════ FULL MODE ═══════════
     const confirmRes = await Swal.fire({
         title: `พบข้อมูล ${payloads.length} รายการ`,
         html: `<div class="text-left text-sm space-y-2">
@@ -2211,13 +2434,11 @@ async function processImportRows(rows, foundHeaders, importMode = null) {
     await loadPersonnelList();
 }
 
-/* ═══════════════════════════════════════════════════════════
-   ✅ IMPORT FROM GOOGLE SHEETS — เรียกใช้ showImportModeModal ก่อน
-   ═══════════════════════════════════════════════════════════ */
+/* ── IMPORT FROM GOOGLE SHEETS ── */
 async function importFromGoogleSheets() {
     if (!requireAdmin(currentProfile?.role, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่นำเข้าข้อมูลได้')) return;
 
-    // ✅ เรียก modal เลือกโหมดก่อน
+    window._importMode = null;   // ✅ ล้างค่าก่อน — กันค้างจากครั้งก่อน
     await showImportModeModal();
 
     if (!window._importMode) return;
@@ -2327,15 +2548,18 @@ function parseCsv(text) {
     return rows;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   ✅ IMPORT FROM EXCEL — ส่ง importMode ที่เลือกไว้
-   ═══════════════════════════════════════════════════════════ */
+/* ── IMPORT FROM EXCEL ── */
 async function importFromExcel(event) {
     const file = event.target.files[0]; if (!file) return;
 
     if (!requireAdmin(currentProfile?.role, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่นำเข้าข้อมูลได้')) {
         event.target.value = '';
         return;
+    }
+
+    // ✅ Guard: ถ้าไม่มี importMode ให้ fallback เป็น full
+    if (!window._importMode) {
+        window._importMode = { mode: 'full' };
     }
 
     event.target.value = '';
@@ -2347,7 +2571,6 @@ async function importFromExcel(event) {
             const rows = XLSX.utils.sheet_to_json(ws, { defval: '', cellDates: true, raw: true });
             if (!rows.length) return Swal.fire('ไฟล์ว่างเปล่า', 'ไม่พบข้อมูลในชีตแรก', 'warning');
             const headers = Object.keys(rows[0]);
-            // ✅ ส่ง mode ที่เลือกไว้
             await processImportRows(rows, headers, window._importMode);
         } catch (err) {
             Swal.close();
@@ -2361,7 +2584,7 @@ async function importFromExcel(event) {
 function openStatsModal() {
     const posStats = {};
     const acadStats = {};
-    allPersonnelData.forEach(p => {
+    allPersonnelData.filter(p => !isHiddenStatus(getPersonnelStatus(p))).forEach(p => {
         const pos = p.position || 'ไม่ระบุ';
         posStats[pos] = (posStats[pos] || 0) + 1;
         const acad = p.academic_standing || 'ไม่มีวิทยฐานะ';
@@ -2384,8 +2607,9 @@ function openStatsModal() {
     sortedAcad.forEach(k => {
         html += `<div class="flex justify-between bg-slate-50 px-3 py-2 rounded-lg"><span class="text-sm">${k}</span><span class="font-bold text-indigo-600">${acadStats[k]}</span></div>`;
     });
+    const activeCount = allPersonnelData.filter(p => !isHiddenStatus(getPersonnelStatus(p))).length;
     html += `</div></div>
-        <div class="text-xs text-slate-400">รวมทั้งหมด ${allPersonnelData.length} คน</div>
+        <div class="text-xs text-slate-400">รวมทั้งหมด ${activeCount} คน (ไม่นับสถานะที่ซ่อน)</div>
     </div>`;
     document.getElementById('stats-content').innerHTML = html;
     document.getElementById('stats-modal').classList.remove('hidden');
@@ -2400,6 +2624,7 @@ function closeStatsModal() {
 function openRetireModal() {
     const today = dayjs();
     const retireList = allPersonnelData.filter(p => {
+        if (isHiddenStatus(getPersonnelStatus(p))) return false;
         if (!p.birth_date) return false;
         const b = dayjs(p.birth_date);
         let ry = b.year() + 60;
@@ -2440,6 +2665,67 @@ function closeRetireModal() {
     document.getElementById('retire-modal').classList.remove('flex');
 }
 
+/* ── Status Modal (รายชื่อที่ซ่อน) ── */
+function openStatusModal() {
+    const hiddenList = allPersonnelData
+        .filter(p => isHiddenStatus(getPersonnelStatus(p)))
+        .sort((a, b) => {
+            const order = { 'เกษียณอายุ': 1, 'ย้าย': 2, 'ลาออก': 3 };
+            return (order[getPersonnelStatus(a)] || 9) - (order[getPersonnelStatus(b)] || 9);
+        });
+
+    let html = '';
+    if (hiddenList.length === 0) {
+        html = '<p class="text-slate-400 text-center py-8">ไม่มีบุคลากรที่ถูกซ่อน</p>';
+    } else {
+        const grouped = {};
+        hiddenList.forEach(p => {
+            const s = getPersonnelStatus(p);
+            if (!grouped[s]) grouped[s] = [];
+            grouped[s].push(p);
+        });
+
+        Object.keys(grouped).forEach(status => {
+            const info = getStatusInfo(status);
+            html += `
+                <div class="mb-4">
+                    <div class="flex items-center gap-2 mb-2 px-1">
+                        <span class="w-2.5 h-2.5 rounded-full" style="background:${info.dot};"></span>
+                        <h4 class="font-bold text-sm text-slate-700">${info.label}</h4>
+                        <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">${grouped[status].length} คน</span>
+                    </div>
+                    <div class="space-y-1.5">
+                        ${grouped[status].map(p => `
+                            <div class="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition">
+                                <div style="width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;color:#fff;background:${avColor(p.first_name)};flex-shrink:0;opacity:0.6;filter:grayscale(0.7);">
+                                    ${(p.first_name || '?').charAt(0)}
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="font-semibold text-slate-700 text-sm truncate">${p.prefix || ''}${p.first_name} ${p.last_name}</p>
+                                    <p class="text-[10px] text-slate-400 truncate">${p.position || '-'} | ${p.department || '-'}</p>
+                                </div>
+                                <button onclick="editPersonnel('${p.id}'); closeStatusModal();"
+                                    class="h-7 w-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition flex items-center justify-center flex-shrink-0" title="แก้ไข">
+                                    <i class="fas fa-pen text-[10px]"></i>
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    document.getElementById('status-modal-content').innerHTML = html;
+    document.getElementById('status-modal').classList.remove('hidden');
+    document.getElementById('status-modal').classList.add('flex');
+}
+
+function closeStatusModal() {
+    document.getElementById('status-modal').classList.add('hidden');
+    document.getElementById('status-modal').classList.remove('flex');
+}
+
 /* ── Expose Globals ── */
 window.toggleRoleView = toggleRoleView;
 window.openSettings = openSettings;
@@ -2454,7 +2740,7 @@ window.exportToExcel = exportToExcel;
 window.downloadTemplate = downloadTemplate;
 window.importFromExcel = importFromExcel;
 window.importFromGoogleSheets = importFromGoogleSheets;
-window.showImportModeModal = showImportModeModal;   // ✅ expose
+window.showImportModeModal = showImportModeModal;
 window.switchTab = switchTab;
 window.checkLicense = checkLicense;
 window.previewAvatar = previewAvatar;
@@ -2478,9 +2764,13 @@ window.updateBirthdayNotification = updateBirthdayNotification;
 window.updateCustomRoleLabel = updateCustomRoleLabel;
 window.openBirthdayModal = openBirthdayModal;
 window.closeBirthdayModal = closeBirthdayModal;
+window.filterByStatus = filterByStatus;
+window.openStatusModal = openStatusModal;
+window.closeStatusModal = closeStatusModal;
+window.updateStatusWarning = updateStatusWarning;
 
 // ==========================================
-// ✅ Hook: re-apply UI หลัง sidebar render ใหม่
+// Hook: re-apply UI หลัง sidebar render
 // ==========================================
 window.onSidebarRendered = function () {
     if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
@@ -2489,7 +2779,7 @@ window.onSidebarRendered = function () {
 };
 
 // ==========================================
-// ✅ Logout — reset Module Admin cache
+// Logout
 // ==========================================
 window.logout = async function () {
     const { isConfirmed } = await Swal.fire({
@@ -2509,4 +2799,4 @@ window.logout = async function () {
     }
 };
 
-console.log('✅ personnel.js loaded (import mode + dynamic PA3 config)');
+console.log('✅ personnel.js loaded (status system + import mode + dynamic PA3)');

@@ -15,27 +15,10 @@
     <style>
         /* Birthday notification */
         @keyframes wiggle-blink {
-
-            0%,
-            100% {
-                transform: rotate(0deg);
-                opacity: 1;
-            }
-
-            25% {
-                transform: rotate(-8deg);
-                opacity: 0.7;
-            }
-
-            50% {
-                transform: rotate(0deg);
-                opacity: 0.4;
-            }
-
-            75% {
-                transform: rotate(8deg);
-                opacity: 0.7;
-            }
+            0%, 100% { transform: rotate(0deg); opacity: 1; }
+            25% { transform: rotate(-8deg); opacity: 0.7; }
+            50% { transform: rotate(0deg); opacity: 0.4; }
+            75% { transform: rotate(8deg); opacity: 0.7; }
         }
 
         .birthday-notification-badge {
@@ -68,6 +51,39 @@
             display: none !important;
         }
 
+        /* ✅ Status Filter Button */
+        .status-filter-btn {
+            background: #f1f5f9;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+        }
+        .status-filter-btn:hover {
+            background: #e2e8f0;
+        }
+        .status-filter-btn.active {
+            background: #6366f1;
+            color: #fff;
+            border-color: #6366f1;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+        }
+
+        /* ✅ Status Badge */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 10px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .status-badge.green  { background: #dcfce7; color: #166534; }
+        .status-badge.amber  { background: #fef3c7; color: #92400e; }
+        .status-badge.orange { background: #fed7aa; color: #9a3412; }
+        .status-badge.blue   { background: #dbeafe; color: #1e40af; }
+        .status-badge.red    { background: #fee2e2; color: #991b1b; }
+
         /* Mobile sidebar */
         @media (max-width: 760px) {
             .d-sidebar {
@@ -83,14 +99,12 @@
                 overflow-y: auto !important;
                 box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
             }
-
             .d-sidebar.open,
             .d-sidebar.show,
             .d-sidebar.active,
             .d-sidebar.is-open {
                 transform: translateX(0) !important;
             }
-
             .d-overlay {
                 display: none !important;
                 position: fixed !important;
@@ -101,7 +115,6 @@
                 opacity: 0;
                 transition: opacity 0.3s ease;
             }
-
             .d-overlay.open,
             .d-overlay.show,
             .d-overlay.active,
@@ -109,46 +122,22 @@
                 display: block !important;
                 opacity: 1;
             }
-
             .d-main {
                 margin-left: 0 !important;
                 padding-left: 0 !important;
                 width: 100% !important;
                 max-width: 100vw !important;
             }
-
-            .d-app {
-                display: block !important;
-            }
-
-            .d-menu {
-                display: flex !important;
-                align-items: center;
-                justify-content: center;
-            }
-
-            .d-collapse {
-                display: none !important;
-            }
-
-            .d-topbar {
-                padding: 0 10px !important;
-                gap: 6px !important;
-            }
-
-            .glass-panel {
-                max-width: 100%;
-            }
-
-            #birthday-notification {
-                display: none !important;
-            }
+            .d-app { display: block !important; }
+            .d-menu { display: flex !important; align-items: center; justify-content: center; }
+            .d-collapse { display: none !important; }
+            .d-topbar { padding: 0 10px !important; gap: 6px !important; }
+            .glass-panel { max-width: 100%; }
+            #birthday-notification { display: none !important; }
         }
 
         @media (min-width: 761px) and (max-width: 1024px) {
-            .d-sidebar {
-                width: 240px;
-            }
+            .d-sidebar { width: 240px; }
         }
     </style>
 </head>
@@ -164,11 +153,11 @@
 
             <div style="padding:0 0 12px;" class="space-y-4">
 
-                <section class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <!-- ✅ Stat Cards (5 การ์ด) -->
+                <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                     <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3 cursor-pointer hover:shadow-md transition"
                         onclick="openStatsModal()">
-                        <div
-                            class="h-11 w-11 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <div class="h-11 w-11 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
                             <i class="fas fa-users"></i>
                         </div>
                         <div>
@@ -178,8 +167,7 @@
                     </div>
                     <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3 cursor-pointer hover:shadow-md transition"
                         onclick="openRetireModal()">
-                        <div
-                            class="h-11 w-11 bg-orange-100 text-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <div class="h-11 w-11 bg-orange-100 text-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
                             <i class="fas fa-user-clock"></i>
                         </div>
                         <div>
@@ -188,8 +176,7 @@
                         </div>
                     </div>
                     <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3">
-                        <div
-                            class="h-11 w-11 bg-red-100 text-red-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <div class="h-11 w-11 bg-red-100 text-red-500 rounded-xl flex items-center justify-center flex-shrink-0">
                             <i class="fas fa-id-card"></i>
                         </div>
                         <div>
@@ -198,8 +185,7 @@
                         </div>
                     </div>
                     <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3">
-                        <div
-                            class="h-11 w-11 bg-green-100 text-green-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <div class="h-11 w-11 bg-green-100 text-green-600 rounded-xl flex items-center justify-center flex-shrink-0">
                             <i class="fas fa-medal"></i>
                         </div>
                         <div>
@@ -207,77 +193,96 @@
                             <h3 id="stat-eligible" class="text-2xl font-bold text-green-600">0</h3>
                         </div>
                     </div>
+                    <!-- ✅ Stat Card ใหม่: ไม่แสดงในรายการ -->
+                    <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3 cursor-pointer hover:shadow-md transition"
+                        onclick="openStatusModal()">
+                        <div class="h-11 w-11 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-user-tag"></i>
+                        </div>
+                        <div>
+                            <p class="text-slate-400 text-[10px] font-bold uppercase">ไม่แสดงในรายการ</p>
+                            <h3 id="stat-hidden" class="text-2xl font-bold text-purple-600">0</h3>
+                        </div>
+                    </div>
                 </section>
 
                 <section id="info-blocks-section" class="grid grid-cols-1 lg:grid-cols-2 gap-4 hidden">
                     <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
-                        <div class="px-5 py-4 bg-indigo-600 flex items-center gap-2 text-white"><i
-                                class="fas fa-graduation-cap"></i>
+                        <div class="px-5 py-4 bg-indigo-600 flex items-center gap-2 text-white"><i class="fas fa-graduation-cap"></i>
                             <h3 class="font-bold text-sm">จำนวนครูจำแนกตามวิทยฐานะ</h3>
                         </div>
                         <div id="block-academic" class="p-4 grid grid-cols-2 sm:grid-cols-3 gap-2 min-h-[80px]">
-                            <div class="text-slate-400 text-sm col-span-full text-center py-4"><i
-                                    class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
+                            <div class="text-slate-400 text-sm col-span-full text-center py-4"><i class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
                         </div>
                     </div>
                     <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
-                        <div class="px-5 py-4 bg-orange-500 flex items-center gap-2 text-white"><i
-                                class="fas fa-user-clock"></i>
+                        <div class="px-5 py-4 bg-orange-500 flex items-center gap-2 text-white"><i class="fas fa-user-clock"></i>
                             <h3 class="font-bold text-sm">ผู้ที่จะเกษียณอายุราชการภายใน 10 ปี</h3>
                         </div>
                         <div id="block-retire" class="divide-y divide-slate-50 max-h-64 overflow-y-auto">
-                            <div class="text-slate-400 text-sm text-center py-4"><i
-                                    class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
+                            <div class="text-slate-400 text-sm text-center py-4"><i class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
                         </div>
                     </div>
                     <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
-                        <div class="px-5 py-4 bg-red-500 flex items-center gap-2 text-white"><i
-                                class="fas fa-id-card"></i>
+                        <div class="px-5 py-4 bg-red-500 flex items-center gap-2 text-white"><i class="fas fa-id-card"></i>
                             <h3 class="font-bold text-sm">ใบอนุญาตหมดภายใน 3 เดือน</h3>
                         </div>
                         <div id="block-license" class="divide-y divide-slate-50 max-h-64 overflow-y-auto">
-                            <div class="text-slate-400 text-sm text-center py-4"><i
-                                    class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
+                            <div class="text-slate-400 text-sm text-center py-4"><i class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
                         </div>
                     </div>
                     <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
-                        <div class="px-5 py-4 bg-green-600 flex items-center gap-2 text-white"><i
-                                class="fas fa-medal"></i>
+                        <div class="px-5 py-4 bg-green-600 flex items-center gap-2 text-white"><i class="fas fa-medal"></i>
                             <h3 class="font-bold text-sm">ผู้มีสิทธิ์ขอยื่นวิทยฐานะ (ครบ 4 ปี)</h3>
                         </div>
                         <div id="block-eligible" class="divide-y divide-slate-50 max-h-64 overflow-y-auto">
-                            <div class="text-slate-400 text-sm text-center py-4"><i
-                                    class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
+                            <div class="text-slate-400 text-sm text-center py-4"><i class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
                         </div>
                     </div>
                 </section>
 
                 <section class="glass rounded-3xl shadow-xl overflow-hidden border border-white/80">
-                    <div
-                        class="p-5 border-b border-slate-100 bg-white/60 flex flex-wrap justify-between items-center gap-3">
-                        <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2"><i
-                                class="fas fa-database text-indigo-600"></i> ทะเบียนประวัติบุคลากร</h2>
+                    <div class="p-5 border-b border-slate-100 bg-white/60 flex flex-wrap justify-between items-center gap-3">
+                        <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-database text-indigo-600"></i> ทะเบียนประวัติบุคลากร</h2>
                         <div class="flex flex-wrap gap-2">
-                            <button id="btn-template" onclick="downloadTemplate()"
-                                class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-sm"><i
-                                    class="fas fa-download text-slate-400"></i> ไฟล์ต้นแบบ</button>
+                            <button id="btn-template" onclick="downloadTemplate({ mode: 'full' })"
+                                class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-sm"><i class="fas fa-download text-slate-400"></i> ไฟล์ต้นแบบ</button>
                             <input type="file" id="excel-import-input" accept=".xlsx,.xls,.csv" class="hidden"
                                 onchange="importFromExcel(event)">
+                            <!-- ✅ เปลี่ยน onclick เป็น showImportModeModal() -->
                             <button id="btn-import" onclick="showImportModeModal()"
-                                class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-amber-100"><i
-                                    class="fas fa-file-import"></i> นำเข้า Excel/CSV</button>
+                                class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-amber-100"><i class="fas fa-file-import"></i> นำเข้า Excel/CSV</button>
                             <button id="btn-import-sheets" onclick="importFromGoogleSheets()"
-                                class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-green-100"><i
-                                    class="fab fa-google-drive"></i> นำเข้า Google Sheets</button>
+                                class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-green-100"><i class="fab fa-google-drive"></i> นำเข้า Google Sheets</button>
                             <button onclick="exportToExcel()"
-                                class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-emerald-100"><i
-                                    class="fas fa-file-export"></i> ส่งออก Excel</button>
+                                class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-emerald-100"><i class="fas fa-file-export"></i> ส่งออก Excel</button>
                             <button id="btn-add" onclick="openModal('add')"
-                                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-indigo-200"><i
-                                    class="fas fa-user-plus"></i> เพิ่มข้อมูล</button>
+                                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-indigo-200"><i class="fas fa-user-plus"></i> เพิ่มข้อมูล</button>
                         </div>
                     </div>
-                    <div class="p-5 bg-white/40 overflow-x-auto">
+
+                    <!-- ✅ Filter สถานะ -->
+                    <div class="px-5 pt-3">
+                        <div class="flex flex-wrap items-center gap-2 mb-2" id="status-filter-bar">
+                            <span class="text-xs font-bold text-slate-500 uppercase mr-1">
+                                <i class="fas fa-filter mr-1"></i>กรองสถานะ:
+                            </span>
+                            <button onclick="filterByStatus('all')" data-status="all"
+                                class="status-filter-btn active px-3 py-1.5 rounded-lg text-xs font-bold transition">ทั้งหมด</button>
+                            <button onclick="filterByStatus('ปกติ')" data-status="ปกติ"
+                                class="status-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold transition">🟢 ปกติ</button>
+                            <button onclick="filterByStatus('ไปช่วยราชการ')" data-status="ไปช่วยราชการ"
+                                class="status-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold transition">🟡 ไปช่วยราชการ</button>
+                            <button onclick="filterByStatus('เกษียณอายุ')" data-status="เกษียณอายุ"
+                                class="status-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold transition">🟠 เกษียณอายุ</button>
+                            <button onclick="filterByStatus('ย้าย')" data-status="ย้าย"
+                                class="status-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold transition">🔵 ย้าย</button>
+                            <button onclick="filterByStatus('ลาออก')" data-status="ลาออก"
+                                class="status-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold transition">🔴 ลาออก</button>
+                        </div>
+                    </div>
+
+                    <div class="p-5 pt-0 bg-white/40 overflow-x-auto">
                         <table id="personnelTable" class="w-full display nowrap" style="width:100%">
                             <thead>
                                 <tr>
@@ -302,10 +307,8 @@
     <!-- Modal แก้ไขข้อมูลบุคลากร -->
     <div id="modal-container" class="fixed inset-0 z-50 hidden items-end md:items-center justify-center">
         <div class="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" onclick="closeModal()"></div>
-        <div
-            class="relative bg-white w-full md:rounded-3xl shadow-2xl z-10 flex flex-col md:max-w-6xl md:max-h-[96vh] h-full md:h-auto md:mx-4 overflow-hidden">
-            <div
-                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-blue-600 text-white flex-shrink-0">
+        <div class="relative bg-white w-full md:rounded-3xl shadow-2xl z-10 flex flex-col md:max-w-6xl md:max-h-[96vh] h-full md:h-auto md:mx-4 overflow-hidden">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-blue-600 text-white flex-shrink-0">
                 <div class="flex items-center gap-3">
                     <div id="modal-avatar-display"
                         class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-xl font-bold overflow-hidden flex-shrink-0">
@@ -316,22 +319,15 @@
                     </div>
                 </div>
                 <button onclick="closeModal()"
-                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i
-                        class="fas fa-times"></i></button>
+                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
 
-            <div
-                class="px-6 py-3 border-b border-slate-100 bg-white flex gap-2 overflow-x-auto flex-shrink-0 hide-scrollbar">
-                <button class="tab-pill active" onclick="switchTab('tab-personal', this)"><i
-                        class="fas fa-user mr-1.5"></i>ข้อมูลส่วนตัว</button>
-                <button class="tab-pill" onclick="switchTab('tab-position', this)"><i
-                        class="fas fa-briefcase mr-1.5"></i>ตำแหน่ง & วิทยฐานะ</button>
-                <button class="tab-pill" onclick="switchTab('tab-service', this)"><i
-                        class="fas fa-calendar-days mr-1.5"></i>ประวัติราชการ</button>
-                <button class="tab-pill" onclick="switchTab('tab-license', this)"><i
-                        class="fas fa-id-card mr-1.5"></i>ใบอนุญาต & PA</button>
-                <button class="tab-pill" onclick="switchTab('tab-pa-docs', this)"><i
-                        class="fas fa-folder-open mr-1.5"></i>เอกสาร PA3</button>
+            <div class="px-6 py-3 border-b border-slate-100 bg-white flex gap-2 overflow-x-auto flex-shrink-0 hide-scrollbar">
+                <button class="tab-pill active" onclick="switchTab('tab-personal', this)"><i class="fas fa-user mr-1.5"></i>ข้อมูลส่วนตัว</button>
+                <button class="tab-pill" onclick="switchTab('tab-position', this)"><i class="fas fa-briefcase mr-1.5"></i>ตำแหน่ง & วิทยฐานะ</button>
+                <button class="tab-pill" onclick="switchTab('tab-service', this)"><i class="fas fa-calendar-days mr-1.5"></i>ประวัติราชการ</button>
+                <button class="tab-pill" onclick="switchTab('tab-license', this)"><i class="fas fa-id-card mr-1.5"></i>ใบอนุญาต & PA</button>
+                <button class="tab-pill" onclick="switchTab('tab-pa-docs', this)"><i class="fas fa-folder-open mr-1.5"></i>เอกสาร PA3</button>
             </div>
 
             <form id="main-form" onsubmit="savePersonnel(event)" class="flex-1 overflow-y-auto" novalidate>
@@ -364,8 +360,7 @@
                                     </label>
                                 </div>
                                 <div class="w-full space-y-1.5">
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                        วางลิงค์รูปภาพ</p>
+                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">วางลิงค์รูปภาพ</p>
                                     <div class="flex gap-1.5">
                                         <input type="text" id="inp-avatar-url" placeholder="https://... หรือ Drive link"
                                             class="field-input flex-1 text-xs min-w-0"
@@ -377,16 +372,14 @@
                                     </div>
                                 </div>
                                 <button type="button" onclick="clearAvatar()"
-                                    class="text-xs text-red-400 hover:text-red-600 transition flex items-center gap-1"><i
-                                        class="fas fa-trash-alt"></i> ลบรูป</button>
+                                    class="text-xs text-red-400 hover:text-red-600 transition flex items-center gap-1"><i class="fas fa-trash-alt"></i> ลบรูป</button>
                             </div>
                             <div class="lg:col-span-3 space-y-5">
                                 <div class="section-header"><i class="fas fa-address-card"></i> ข้อมูลพื้นฐาน</div>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     <div class="field-group sm:col-span-2 lg:col-span-2">
                                         <label class="field-label required">ชื่อ - สกุล (ดึงจากระบบกลาง)</label>
-                                        <select id="inp-personnel-id" required onchange="onNameSelect()"
-                                            class="field-input">
+                                        <select id="inp-personnel-id" required onchange="onNameSelect()" class="field-input">
                                             <option value="">-- กรุณาเลือก --</option>
                                         </select>
                                     </div>
@@ -433,6 +426,25 @@
                                                 <option>ลูกจ้าง</option>
                                             </optgroup>
                                         </select>
+                                    </div>
+
+                                    <!-- ✅ เพิ่มสถานะบุคลากร -->
+                                    <div class="field-group sm:col-span-2 lg:col-span-3">
+                                        <label class="field-label">
+                                            <i class="fas fa-user-tag text-indigo-500 mr-1"></i> สถานะบุคลากร
+                                            <span class="text-[10px] text-amber-600 font-normal ml-1">(เฉพาะ Super Admin เปลี่ยนได้)</span>
+                                        </label>
+                                        <select id="sel-personnel-status" class="field-input" disabled>
+                                            <option value="ปกติ" data-color="green">🟢 ปกติ (ปฏิบัติงาน)</option>
+                                            <option value="ไปช่วยราชการ" data-color="amber">🟡 ไปช่วยราชการ</option>
+                                            <option value="เกษียณอายุ" data-color="orange">🟠 เกษียณอายุ</option>
+                                            <option value="ย้าย" data-color="blue">🔵 ย้ายสถานศึกษา</option>
+                                            <option value="ลาออก" data-color="red">🔴 ลาออก</option>
+                                        </select>
+                                        <p id="status-warning" class="text-[11px] text-amber-600 mt-1 hidden">
+                                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                                            <span id="status-warning-text"></span>
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -529,13 +541,11 @@
                                             <input type="text" id="inp-license-number" placeholder="เช่น ค.12345"
                                                 class="field-input">
                                             <button type="button" onclick="checkLicense()" title="ตรวจสอบใบอนุญาต KSP"
-                                                class="px-3 py-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition flex-shrink-0"><i
-                                                    class="fas fa-magnifying-glass text-sm"></i></button>
+                                                class="px-3 py-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition flex-shrink-0"><i class="fas fa-magnifying-glass text-sm"></i></button>
                                         </div>
                                     </div>
                                     <div class="field-group">
-                                        <label class="field-label" style="color:#ef4444">วันหมดอายุใบอนุญาต
-                                            (พ.ศ.)</label>
+                                        <label class="field-label" style="color:#ef4444">วันหมดอายุใบอนุญาต (พ.ศ.)</label>
                                         <div class="flex gap-1.5 items-center">
                                             <input type="text" id="inp-license-exp" placeholder="เลือกวันที่..."
                                                 autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
@@ -545,14 +555,12 @@
                                                 title="เคลียร์วันที่"><i class="fas fa-trash-can text-xs"></i></button>
                                         </div>
                                     </div>
-                                    <div class="field-group sm:col-span-2"><label class="field-label">สถานะใบอนุญาต
-                                            (คำนวณ)</label><input type="text" id="out-license-status" readonly
+                                    <div class="field-group sm:col-span-2"><label class="field-label">สถานะใบอนุญาต (คำนวณ)</label><input type="text" id="out-license-status" readonly
                                             class="field-input auto-green"></div>
                                 </div>
                             </div>
                             <div>
-                                <div class="section-header"><i class="fas fa-file-circle-check"></i> สถานะ PA
-                                    (Performance Agreement)</div>
+                                <div class="section-header"><i class="fas fa-file-circle-check"></i> สถานะ PA (Performance Agreement)</div>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div class="field-group sm:col-span-2">
                                         <label class="field-label">สถานะ PA ปัจจุบัน</label>
@@ -564,17 +572,12 @@
                                             <option value="ไม่ผ่าน">ไม่ผ่าน</option>
                                         </select>
                                     </div>
-                                    <div
-                                        class="sm:col-span-2 p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100 text-sm text-indigo-700 space-y-1">
-                                        <p class="font-bold text-xs uppercase tracking-wider text-indigo-400 mb-2">
-                                            สรุปข้อมูล PA (คำนวณจากวันแต่งตั้ง)</p>
+                                    <div class="sm:col-span-2 p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100 text-sm text-indigo-700 space-y-1">
+                                        <p class="font-bold text-xs uppercase tracking-wider text-indigo-400 mb-2">สรุปข้อมูล PA (คำนวณจากวันแต่งตั้ง)</p>
                                         <div class="grid grid-cols-2 gap-2 text-xs">
-                                            <span class="text-slate-500">วันครบคุณสมบัติ:</span><span
-                                                id="pa-info-eligible" class="font-bold">-</span>
-                                            <span class="text-slate-500">เหลือเวลาอีก:</span><span
-                                                id="pa-info-countdown" class="font-bold">-</span>
-                                            <span class="text-slate-500">ดำรงตำแหน่งมาแล้ว:</span><span
-                                                id="pa-info-duration" class="font-bold">-</span>
+                                            <span class="text-slate-500">วันครบคุณสมบัติ:</span><span id="pa-info-eligible" class="font-bold">-</span>
+                                            <span class="text-slate-500">เหลือเวลาอีก:</span><span id="pa-info-countdown" class="font-bold">-</span>
+                                            <span class="text-slate-500">ดำรงตำแหน่งมาแล้ว:</span><span id="pa-info-duration" class="font-bold">-</span>
                                         </div>
                                     </div>
                                 </div>
@@ -583,24 +586,20 @@
                     </div>
 
                     <div id="tab-pa-docs" class="tab-panel">
-                        <div class="section-header"><i class="fas fa-folder-open"></i> ไฟล์เอกสาร PA3 (Link หรือ Google
-                            Drive)</div>
+                        <div class="section-header"><i class="fas fa-folder-open"></i> ไฟล์เอกสาร PA3 (Link หรือ Google Drive)</div>
                         <div id="pa-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
                     </div>
                 </div>
             </form>
 
-            <div
-                class="flex-shrink-0 bg-white/90 border-t border-slate-100 px-6 py-4 flex flex-wrap justify-between items-center gap-3">
-                <div class="text-xs text-slate-400 flex items-center gap-1"><i
-                        class="fas fa-circle-info"></i><span>ช่องที่มีเครื่องหมาย <span
+            <div class="flex-shrink-0 bg-white/90 border-t border-slate-100 px-6 py-4 flex flex-wrap justify-between items-center gap-3">
+                <div class="text-xs text-slate-400 flex items-center gap-1"><i class="fas fa-circle-info"></i><span>ช่องที่มีเครื่องหมาย <span
                             class="text-red-500 font-bold">*</span> จำเป็นต้องกรอก</span></div>
                 <div class="flex gap-3">
                     <button type="button" onclick="closeModal()"
                         class="px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition">ยกเลิก</button>
                     <button type="submit" form="main-form" id="btn-submit"
-                        class="px-8 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-200 transition flex items-center gap-2"><i
-                            class="fas fa-floppy-disk"></i> บันทึกข้อมูล</button>
+                        class="px-8 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-200 transition flex items-center gap-2"><i class="fas fa-floppy-disk"></i> บันทึกข้อมูล</button>
                 </div>
             </div>
         </div>
@@ -610,21 +609,17 @@
     <div id="stats-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeStatsModal()"></div>
         <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl max-h-[80vh] overflow-hidden">
-            <div
-                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-blue-600 text-white">
-                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-users"></i> สถิติบุคลากรทั้งหมด
-                </h3>
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-blue-600 text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-users"></i> สถิติบุคลากรทั้งหมด</h3>
                 <button onclick="closeStatsModal()"
-                    class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i
-                        class="fas fa-times"></i></button>
+                    class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-6 overflow-y-auto max-h-[60vh]">
                 <div id="stats-content" class="space-y-4"></div>
             </div>
             <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end"><button
                     onclick="closeStatsModal()"
-                    class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button>
-            </div>
+                    class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button></div>
         </div>
     </div>
 
@@ -632,20 +627,35 @@
     <div id="retire-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeRetireModal()"></div>
         <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl max-h-[80vh] overflow-hidden">
-            <div
-                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-orange-500 to-orange-600 text-white">
-                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-user-clock"></i>
-                    รายชื่อผู้ใกล้เกษียณ (ภายใน 10 ปี)</h3>
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-orange-500 to-orange-600 text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-user-clock"></i> รายชื่อผู้ใกล้เกษียณ (ภายใน 10 ปี)</h3>
                 <button onclick="closeRetireModal()"
-                    class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i
-                        class="fas fa-times"></i></button>
+                    class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-6 overflow-y-auto max-h-[60vh]">
                 <div id="retire-content" class="space-y-2"></div>
             </div>
             <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end"><button
                     onclick="closeRetireModal()"
-                    class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button>
+                    class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button></div>
+        </div>
+    </div>
+
+    <!-- ✅ Modal แสดงรายชื่อที่ถูกซ่อน -->
+    <div id="status-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeStatusModal()"></div>
+        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex-shrink-0">
+                <h3 class="text-lg font-bold flex items-center gap-2">
+                    <i class="fas fa-user-tag"></i> บุคลากรที่ไม่แสดงในรายการ
+                </h3>
+                <button onclick="closeStatusModal()" class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="status-modal-content" class="p-5 overflow-y-auto flex-1"></div>
+            <div class="px-6 py-3 border-t border-slate-100 bg-slate-50 flex justify-end flex-shrink-0">
+                <button onclick="closeStatusModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button>
             </div>
         </div>
     </div>
@@ -653,12 +663,8 @@
     <!-- Modal ตั้งค่าระบบ (3 บล็อก) -->
     <div id="settings-modal" class="fixed inset-0 z-[60] hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeSettings()"></div>
-        <div
-            class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden">
-
-            <!-- Header -->
-            <div
-                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-800 to-slate-700 text-white flex-shrink-0">
+        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-800 to-slate-700 text-white flex-shrink-0">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
                         <i class="fas fa-gear text-lg"></i>
@@ -674,21 +680,16 @@
                 </button>
             </div>
 
-            <!-- Body: 3 Columns Grid -->
             <div class="flex-1 overflow-y-auto p-5 bg-slate-50/50">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-                    <!-- ══════════ บล็อก 1: การตั้งค่าพื้นฐาน ══════════ -->
+                    <!-- บล็อก 1: การตั้งค่าพื้นฐาน -->
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                        <div
-                            class="px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-blue-600 text-white flex items-center gap-2">
+                        <div class="px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-blue-600 text-white flex items-center gap-2">
                             <i class="fas fa-cog text-sm"></i>
                             <h4 class="font-bold text-sm">การตั้งค่าพื้นฐาน</h4>
                             <span class="ml-auto text-[10px] bg-white/20 px-2 py-0.5 rounded-full">Block 1</span>
                         </div>
                         <div class="p-4 space-y-4 flex-1">
-
-                            <!-- สถานะระบบ -->
                             <div class="bg-slate-50 rounded-xl p-3">
                                 <div class="flex justify-between items-center gap-2">
                                     <div class="min-w-0">
@@ -698,119 +699,83 @@
                                     <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
                                         <input type="checkbox" id="set-sys-active" class="sr-only peer"
                                             onchange="saveSetting('is_active', this.checked)">
-                                        <div
-                                            class="w-10 h-5 bg-slate-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500">
-                                        </div>
+                                        <div class="w-10 h-5 bg-slate-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
                                     </label>
                                 </div>
                             </div>
-
-                            <!-- Drive Folder -->
                             <div class="space-y-1.5">
-                                <label
-                                    class="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                                     <i class="fab fa-google-drive text-emerald-600"></i> Drive Folder ID
                                 </label>
                                 <div class="flex gap-1.5">
                                     <input type="text" id="set-drive-folder-id" placeholder="1BxiMVs..."
                                         class="field-input flex-1 text-xs min-w-0">
-                                    <button
-                                        onclick="saveSetting('drive_folder_id', document.getElementById('set-drive-folder-id').value)"
-                                        class="px-3 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1 flex-shrink-0 shadow-sm"
-                                        title="บันทึก">
-                                        <i class="fas fa-floppy-disk"></i>
-                                    </button>
+                                    <button onclick="saveSetting('drive_folder_id', document.getElementById('set-drive-folder-id').value)"
+                                        class="px-3 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1 flex-shrink-0 shadow-sm" title="บันทึก"><i class="fas fa-floppy-disk"></i></button>
                                 </div>
                                 <p class="text-[10px] text-slate-400">ใช้เก็บรูปโปรไฟล์บุคลากร</p>
                             </div>
-
-                            <!-- GAS URL -->
                             <div class="space-y-1.5">
-                                <label
-                                    class="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                                     <i class="fas fa-cloud-upload-alt text-blue-600"></i> Google Apps Script URL
                                 </label>
                                 <div class="flex gap-1.5">
                                     <input type="text" id="set-gas-url" placeholder="https://script.google.com/..."
                                         class="field-input flex-1 text-xs min-w-0">
-                                    <button
-                                        onclick="saveSetting('gas_url', document.getElementById('set-gas-url').value)"
-                                        class="px-3 h-9 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center gap-1 flex-shrink-0 shadow-sm"
-                                        title="บันทึก">
-                                        <i class="fas fa-floppy-disk"></i>
-                                    </button>
+                                    <button onclick="saveSetting('gas_url', document.getElementById('set-gas-url').value)"
+                                        class="px-3 h-9 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center gap-1 flex-shrink-0 shadow-sm" title="บันทึก"><i class="fas fa-floppy-disk"></i></button>
                                 </div>
                                 <p class="text-[10px] text-slate-400">ใช้สำหรับอัปโหลดรูปขึ้น Drive</p>
                             </div>
-
-                            <!-- Settings Status -->
-                            <div id="settings-status"
-                                class="bg-indigo-50 border border-indigo-100 rounded-xl p-3 hidden">
-                                <p class="text-[10px] font-bold text-indigo-600 mb-1.5 uppercase tracking-wider">
-                                    <i class="fas fa-circle-info mr-1"></i> ค่าที่บันทึก
-                                </p>
+                            <div id="settings-status" class="bg-indigo-50 border border-indigo-100 rounded-xl p-3 hidden">
+                                <p class="text-[10px] font-bold text-indigo-600 mb-1.5 uppercase tracking-wider"><i class="fas fa-circle-info mr-1"></i> ค่าที่บันทึก</p>
                                 <div id="settings-status-content" class="text-[11px] text-indigo-700 space-y-0.5"></div>
                             </div>
-
                         </div>
                     </div>
 
-                    <!-- ══════════ บล็อก 2: ผู้ดูแลระบบ ══════════ -->
+                    <!-- บล็อก 2: ผู้ดูแลระบบ -->
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                        <div
-                            class="px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-purple-600 to-violet-600 text-white flex items-center gap-2">
+                        <div class="px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-purple-600 to-violet-600 text-white flex items-center gap-2">
                             <i class="fas fa-user-shield text-sm"></i>
                             <h4 class="font-bold text-sm">ผู้ดูแลระบบ</h4>
                             <span class="ml-auto text-[10px] bg-white/20 px-2 py-0.5 rounded-full">Block 2</span>
                         </div>
                         <div class="p-4 space-y-3 flex-1">
-
                             <p class="text-[11px] text-slate-500 leading-relaxed">
                                 <i class="fas fa-info-circle text-purple-500 mr-1"></i>
                                 แอดมินในระบบนี้จะเข้าถึงข้อมูลทุกคนและตั้งค่าได้
                             </p>
-
                             <div class="space-y-1.5">
-                                <label
-                                    class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">เพิ่มผู้ดูแลใหม่</label>
+                                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">เพิ่มผู้ดูแลใหม่</label>
                                 <select id="sel-add-local-admin" class="field-input text-xs"></select>
                                 <button onclick="addLocalAdmin()"
-                                    class="w-full px-3 h-9 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm">
-                                    <i class="fas fa-plus"></i> แต่งตั้งผู้ดูแล
-                                </button>
+                                    class="w-full px-3 h-9 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"><i class="fas fa-plus"></i> แต่งตั้งผู้ดูแล</button>
                             </div>
-
                             <div class="pt-2 border-t border-slate-100">
-                                <p
-                                    class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">
                                     <i class="fas fa-list"></i> รายชื่อปัจจุบัน
-                                    <span id="local-admin-count"
-                                        class="ml-auto bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full normal-case">0</span>
+                                    <span id="local-admin-count" class="ml-auto bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full normal-case">0</span>
                                 </p>
                                 <div id="list-local-admins" class="space-y-1.5 max-h-56 overflow-y-auto"></div>
                             </div>
-
                         </div>
                     </div>
 
-                    <!-- ══════════ บล็อก 3: ปีงบประมาณ PA3 ══════════ -->
+                    <!-- บล็อก 3: ปีงบประมาณ PA3 -->
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                        <div
-                            class="px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-amber-500 to-orange-500 text-white flex items-center gap-2">
+                        <div class="px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-amber-500 to-orange-500 text-white flex items-center gap-2">
                             <i class="fas fa-folder-open text-sm"></i>
                             <h4 class="font-bold text-sm">ปีงบประมาณ PA3</h4>
                             <span class="ml-auto text-[10px] bg-white/20 px-2 py-0.5 rounded-full">Block 3</span>
                         </div>
                         <div class="p-4 space-y-3 flex-1">
-
                             <p class="text-[11px] text-slate-500 leading-relaxed">
                                 <i class="fas fa-lightbulb text-amber-500 mr-1"></i>
                                 กำหนดปีงบประมาณที่จะแสดงช่องใส่ลิงค์ PA3 ในหน้าแก้ไขบุคลากร
                             </p>
-
                             <div class="space-y-1.5">
-                                <label
-                                    class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">เพิ่มปีใหม่</label>
+                                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">เพิ่มปีใหม่</label>
                                 <div class="flex gap-1.5">
                                     <input type="number" id="set-pa3-new-year" placeholder="2571" min="2500" max="2700"
                                         class="field-input w-20 text-sm text-center font-bold">
@@ -818,33 +783,23 @@
                                         class="field-input flex-1 text-xs min-w-0">
                                 </div>
                                 <button onclick="addPA3Year()"
-                                    class="w-full px-3 h-9 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm">
-                                    <i class="fas fa-plus"></i> เพิ่มปีนี้
-                                </button>
+                                    class="w-full px-3 h-9 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"><i class="fas fa-plus"></i> เพิ่มปีนี้</button>
                             </div>
-
                             <div class="pt-2 border-t border-slate-100">
-                                <p
-                                    class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">
                                     <i class="fas fa-calendar-alt"></i> รายการปี
-                                    <span id="pa3-year-count"
-                                        class="ml-auto bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full normal-case">0</span>
+                                    <span id="pa3-year-count" class="ml-auto bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full normal-case">0</span>
                                 </p>
                                 <div id="list-pa3-years" class="space-y-1.5 max-h-56 overflow-y-auto"></div>
                             </div>
-
                         </div>
                     </div>
-
                 </div>
             </div>
 
-            <!-- Footer -->
             <div class="px-6 py-3 border-t border-slate-100 bg-white flex justify-end flex-shrink-0">
                 <button onclick="closeSettings()"
-                    class="px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition">
-                    ปิด
-                </button>
+                    class="px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition">ปิด</button>
             </div>
         </div>
     </div>
@@ -852,16 +807,13 @@
     <!-- Modal รายชื่อวันเกิด -->
     <div id="birthday-modal" class="fixed inset-0 z-[70] hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeBirthdayModal()"></div>
-        <div
-            class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
-            <div
-                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-pink-500 to-rose-500 text-white flex-shrink-0">
+        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-pink-500 to-rose-500 text-white flex-shrink-0">
                 <div class="flex items-center gap-2">
                     <i class="fas fa-birthday-cake text-lg"></i>
                     <h3 class="font-bold text-base">🎂 รายชื่อวันเกิด</h3>
                 </div>
-                <button onclick="closeBirthdayModal()"
-                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                <button onclick="closeBirthdayModal()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -913,7 +865,7 @@
         }
 
         // =======================================================
-        // ✅ Init Module Sidebar + ปุ่มนำทาง
+        // Init Module Sidebar + ปุ่มนำทาง
         // =======================================================
         initModuleSidebar({
             moduleKey: 'personnel',
@@ -930,7 +882,6 @@
             ],
             fallbackConfig: getPersonnelFallbackConfig(),
             onReady: () => {
-                // ✅ Inject birthday notification span หลัง d-spacer (ถ้ายังไม่มี)
                 const topbar = document.getElementById('dTopbar');
                 if (topbar && !topbar.querySelector('#birthday-notification')) {
                     const spacer = topbar.querySelector('.d-spacer');
@@ -941,7 +892,6 @@
                         spacer.insertAdjacentElement('afterend', span);
                     }
                 }
-                // ✅ Restore user info หลัง topbar re-render
                 if (window.currentProfile) {
                     if (typeof setUserDisplayName === 'function') setUserDisplayName(window.currentProfile);
                     if (typeof renderUserAvatar === 'function') renderUserAvatar(window.currentProfile);
@@ -950,7 +900,6 @@
                 if (typeof setTodayChip === 'function') setTodayChip();
                 if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
                 if (typeof window.updateBirthdayNotification === 'function') window.updateBirthdayNotification();
-                // ⚠️ ไม่ต้องเรียก injectPersonnelSettingsMenu() อีก — ใช้ footerMenu + roles แทน
             }
         });
     </script>

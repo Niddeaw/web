@@ -131,6 +131,29 @@ function _writePersonnelCache(userId, data) {
     } catch (e) { }
 }
 
+// ==========================================
+// ✅ ตรวจสอบสถานะบุคลากรสดๆ (ไม่ผ่าน cache)
+// ==========================================
+async function _checkPersonnelStatus(userId) {
+    try {
+        const { data, error } = await db
+            .from('core_personnel')
+            .select('personnel_status')
+            .eq('id', userId)
+            .maybeSingle();
+
+        if (error) {
+            console.warn('checkPersonnelStatus error:', error);
+            return null;
+        }
+        if (!data) return null;
+        return data.personnel_status || 'ปกติ';
+    } catch (e) {
+        console.error('checkPersonnelStatus exception:', e);
+        return null;
+    }
+}
+
 function clearAuthPersonnelCache() {
     try { sessionStorage.removeItem(_AUTH_PERSONNEL_CACHE_KEY); } catch (e) { }
 }
@@ -192,14 +215,66 @@ async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
         return null;
     }
 
-    // ✅ 2) ลอง cache personnel ก่อน
+    // ==========================================
+    // ✅ [ใหม่] 2) ตรวจสอบสถานะบุคลากร "สด" ทุกครั้ง (ไม่ใช้ cache)
+    //     เพื่อให้การเปลี่ยนสถานะมีผลทันที
+    // ==========================================
+    const liveStatusRaw = await _checkPersonnelStatus(user.id);
+    const BLOCKED_LOGIN_STATUSES = ['เกษียณอายุ', 'ย้าย', 'ลาออก'];
+
+    // ✅ ถ้าตรวจสอบไม่ได้ (null) → fail-open + log (ใช้งานต่อได้)
+    const liveStatus = liveStatusRaw === null ? 'ปกติ' : liveStatusRaw;
+    if (liveStatusRaw === null) {
+        console.warn(`⚠️ [checkSessionAndRole] ไม่สามารถตรวจสอบสถานะของ ${user.id} ได้ — ใช้ค่า default "ปกติ"`);
+    }
+
+    if (BLOCKED_LOGIN_STATUSES.includes(liveStatus)) {
+        const statusLabels = {
+            'เกษียณอายุ': 'เกษียณอายุ',
+            'ย้าย': 'ย้ายสถานศึกษา',
+            'ลาออก': 'ลาออก'
+        };
+        const statusColors = {
+            'เกษียณอายุ': '#f97316',
+            'ย้าย': '#3b82f6',
+            'ลาออก': '#ef4444'
+        };
+
+        // ล้าง session + cache ทันที
+        try { localStorage.removeItem('activeMode'); } catch (e) { }
+        clearAuthPersonnelCache();
+        await db.auth.signOut();
+
+        await Swal.fire({
+            icon: 'error',
+            title: 'ไม่สามารถเข้าใช้งานได้',
+            html: `
+                <div style="text-align:center">
+                    <div style="display:inline-flex;align-items:center;gap:6px;background:${statusColors[liveStatus]}20;color:${statusColors[liveStatus]};padding:6px 14px;border-radius:9999px;font-weight:700;font-size:13px;margin-bottom:12px;">
+                        <span style="width:8px;height:8px;border-radius:50%;background:${statusColors[liveStatus]};"></span>
+                        สถานะ: ${statusLabels[liveStatus]}
+                    </div>
+                    <p style="font-size:14px;color:#475569;margin:0 0 6px;">บัญชีของคุณไม่สามารถเข้าใช้งานระบบได้</p>
+                    <p style="font-size:12px;color:#94a3b8;margin:0;">กรุณาติดต่อผู้ดูแลระบบหากมีข้อผิดพลาด</p>
+                </div>
+            `,
+            confirmButtonText: 'กลับหน้า Login',
+            confirmButtonColor: '#dc2626',
+            allowOutsideClick: false,
+            allowEscapeKey: false
+        });
+
+        window.location.replace('login.html');
+        return null;
+    }
+
+    // ✅ 3) ลอง cache personnel (สำหรับข้อมูลอื่นๆ)
     let personnel = _readPersonnelCache(user.id);
 
     if (!personnel) {
-        // ✅ เลือกเฉพาะคอลัมน์ที่ใช้ (ลด payload)
         const { data, error } = await db
             .from('core_personnel')
-            .select('id, prefix, first_name, last_name, role, email, avatar_url, position, department')
+            .select('id, prefix, first_name, last_name, role, email, avatar_url, position, department, personnel_status')
             .eq('id', user.id)
             .single();
 
@@ -211,6 +286,9 @@ async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
         personnel = data;
         _writePersonnelCache(user.id, personnel);
     }
+
+    // ✅ อัปเดตสถานะใน cache ให้ตรงกับค่าสด
+    personnel.personnel_status = liveStatus;
 
     const role = personnel.role;
     const allowed = allowedRoles || WRK_ROLES.ALLOWED;
@@ -228,11 +306,11 @@ async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
         return null;
     }
 
-    const isAdmin   = WRK_ROLES.ADMIN.includes(role);
+    const isAdmin = WRK_ROLES.ADMIN.includes(role);
     const isTeacher = WRK_ROLES.TEACHER.includes(role);
-    const isOffice  = WRK_ROLES.OFFICE.includes(role);
+    const isOffice = WRK_ROLES.OFFICE.includes(role);
 
-    // ✅ บล็อกการเข้าหน้าโมดูลที่ถูกปิดใช้งาน (เข้าผ่าน URL ตรง/บุ๊กมาร์ก)
+    // ✅ บล็อกการเข้าหน้าโมดูลที่ถูกปิดใช้งาน
     if (role !== 'super_admin') {
         const blocked = await _isCurrentPageModuleDisabled();
         if (blocked) {
@@ -250,12 +328,11 @@ async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
     }
 
     // ==========================================
-    // ✅ [สำคัญมาก] เก็บข้อมูลไว้ใน Global Scope
-    // เพื่อให้ NotificationCenter, Sidebar และ UI อื่นๆ ใช้งานได้
+    // ✅ เก็บข้อมูลไว้ใน Global Scope
     // ==========================================
     window.currentUserRole = role;
-    window.currentProfile = personnel; // 🔔 เพิ่มบรรทัดนี้
-    window.currentUser = user;         // 🔔 เพิ่มบรรทัดนี้
+    window.currentProfile = personnel;
+    window.currentUser = user;
 
     console.log(`⚡ [checkSessionAndRole] ${moduleName}: ${Math.round(performance.now() - t0)} ms`);
 
@@ -373,4 +450,22 @@ window.logout = function () {
     });
 };
 
+// ==========================================
+// ✅ Real-time cache invalidation ข้าม tab
+// ==========================================
+if (typeof BroadcastChannel !== 'undefined') {
+    try {
+        const _authSyncChannel = new BroadcastChannel('wrk_auth_sync');
+        _authSyncChannel.addEventListener('message', (e) => {
+            if (e.data?.type === 'cache_clear' && e.data.userId === window.currentUser?.id) {
+                clearAuthPersonnelCache();
+                // force reload เพื่อตรวจสถานะใหม่
+                window.location.reload();
+            }
+        });
+    } catch (e) { console.warn('BroadcastChannel not available:', e); }
+}
+
+// ✅ Export helper ให้หน้าอื่นเรียกใช้ได้
+window.checkPersonnelStatus = _checkPersonnelStatus;
 console.log('✅ config.js loaded (v2.1 OPTIMIZED — getSession + cache)');
