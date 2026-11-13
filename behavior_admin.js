@@ -315,7 +315,8 @@ function initTableServerSide() {
                     </button>`
             }
         ],
-        order: [[1, 'asc'], [2, 'asc']],
+        // order: [[1, 'asc'], [2, 'asc']],
+        order: [],
         pageLength: 25,
         lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
@@ -367,7 +368,9 @@ async function loadTableDataServerSide(dtParams, callback) {
     const { start, length, search, order, draw } = dtParams;
     try {
         let query = db.from('behavior_student_summary')
-            .select('*', { count: 'exact', head: false });
+            .select('*', { count: 'exact', head: false })
+            .not('grade_level', 'is', null) // ✅ ซ่อนคนไม่มีชั้นเรียน
+            .not('room_number', 'is', null); // ✅ ซ่อนคนไม่มีห้องเรียน
 
         const classroomValue = classroomTomSelect?.getValue();
         if (!currentFilter && classroomValue) {
@@ -403,20 +406,13 @@ async function loadTableDataServerSide(dtParams, callback) {
             query = query.or(`student_id_card.ilike.${searchTerm},first_name.ilike.${searchTerm},last_name.ilike.${searchTerm}`);
         }
 
-        if (order && order.length > 0) {
-            const colIndex = order[0].column;
-            // ⚠️ ปรับ index เพราะเพิ่มคอลัมน์ avatar ที่ตำแหน่ง 0
-            const colNames = ['avatar_students_url', 'room_display', 'student_number', 'student_id_card', 'full_name', 'total_score'];
-            const colName = colNames[colIndex] || 'grade_level';
-            query = query.order(colName, { ascending: order[0].dir === 'asc' });
-        }
-
         const { data, error, count } = await query.range(start, start + length - 1);
         if (error) throw error;
 
         const formattedData = (data || []).map(row => ({
             student_id: row.student_id,
-            roomDisplay: `ม.${row.grade_level}/${row.room_number}`,
+            // ✅ เปลี่ยนมาใช้ค่าจาก SQL View ที่เราแก้ไว้ (ถ้าไม่มีให้ขึ้น '-')
+            roomDisplay: row.room_display || '-',
             student_number: row.student_number || '-',
             sid: row.student_id_card || '-',
             fullName: row.full_name || '-',
@@ -441,6 +437,8 @@ async function searchStudent(val) {
             .from('behavior_student_summary')
             .select('student_id, student_id_card, full_name, room_display, avatar_students_url')
             .or(`student_id_card.ilike.%${val}%,full_name.ilike.%${val}%`)
+            .not('grade_level', 'is', null) // ✅ ไม่ให้ค้นเจอคนไม่มีห้อง
+            .not('room_number', 'is', null)
             .limit(10);
         if (error) throw error;
 
