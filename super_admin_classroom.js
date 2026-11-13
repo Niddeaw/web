@@ -1582,12 +1582,12 @@ async function openStudentNumberReorder() {
             // ✅ แก้ handle ให้ชี้ที่ช่องลาก (ไม่ใช่ทั้งแถว)
             new Sortable(tbody, {
                 animation: 180,
-                ghostClass: 'opacity-30',
-                chosenClass: 'bg-indigo-50',
-                dragClass: 'shadow-lg bg-white',
-                handle: '.drag-handle-cell',     // ✅ handle อยู่ที่ <td> ช่องลาก
-                forceFallback: true,              // ✅ ใช้ fallback สำหรับ table row
-                fallbackClass: 'sortable-fallback-tr',
+                ghostClass: 'sortable-ghost-row',        // ✅ ชื่อคลาสเดียว
+                chosenClass: 'sortable-chosen-row',      // ✅ ชื่อคลาสเดียว
+                dragClass: 'sortable-drag-row',          // ✅ ชื่อคลาสเดียว
+                handle: '.drag-handle-cell',
+                forceFallback: true,
+                fallbackClass: 'sortable-fallback-tr',   // ✅ ถูกอยู่แล้ว
                 fallbackOnBody: true,
                 onEnd: () => { _updateStudentOrderNumbers(); }
             });
