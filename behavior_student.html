@@ -174,11 +174,7 @@
             try {
                 const sidFromEmail = session.user.email.split('@')[0];
 
-                // รับปีการศึกษาและเทอมปัจจุบัน (เผื่อใช้กรอง behavior_logs)
-                const { data: sInfo } = await db.from('core_school_info').select('current_academic_year, current_semester').single();
-                const academicYear = sInfo?.current_academic_year || null;
-                const semester = sInfo?.current_semester || null;
-
+                // 1. ดึงข้อมูลนักเรียน (ไม่ต้องดึง behavior_logs สำหรับคำนวณคะแนนแล้ว)
                 const { data: student, error: dbError } = await db.from('core_students')
                     .select(`
                 *,
@@ -200,13 +196,25 @@
                     return;
                 }
 
-                // ✅ กรอง logs เฉพาะปี/เทอมปัจจุบัน (ถ้ามีข้อมูล) — ไม่บังคับ
-                if (academicYear && semester) {
-                    student.behavior_logs = student.behavior_logs?.filter(log =>
-                        log.academic_year === academicYear && log.semester === semester
-                    ) || [];
-                }
+                // 2. ✅ ดึงคะแนนจาก View (Single Source of Truth)
+                const { data: summary, error: sumErr } = await db
+                    .from('behavior_student_summary')
+                    .select('total_score, pos_score, neg_score, pos_count, neg_count')
+                    .eq('student_id', student.id)
+                    .single();
 
+                if (sumErr) console.warn('ไม่พบ summary:', sumErr);
+
+                // 3. เก็บ summary ไว้ใช้ใน updateUI
+                student._summary = summary || {
+                    total_score: 100,
+                    pos_score: 0,
+                    neg_score: 0,
+                    pos_count: 0,
+                    neg_count: 0
+                };
+
+                // ✅ ลบ Logic การกรองปี/เทอมออก (View จัดการให้แล้ว)
                 studentProfile = student;
                 updateUI();
             } catch (err) {
@@ -217,6 +225,7 @@
 
         function updateUI() {
             const s = studentProfile;
+            const summary = s._summary || { total_score: 100, pos_score: 0, neg_score: 0, pos_count: 0, neg_count: 0 };
             const fullName = `${s.prefix || ''}${s.first_name} ${s.last_name}`;
 
             // Avatar
@@ -237,24 +246,22 @@
             const enrollment = s.student_enrollments?.[0];
             const cls = enrollment?.core_classrooms;
             $('#student-info').html(`
-                ${cls ? `<p><i class="fas fa-graduation-cap w-5 text-center text-blue-400 drop-shadow-sm"></i> ชั้นมัธยมศึกษาปีที่ ม.${cls.grade_level}/${cls.room_number}</p>` : ''}
-                ${enrollment?.student_number ? `<p><i class="fas fa-list-ol w-5 text-center text-blue-400 drop-shadow-sm"></i> เลขที่ ${enrollment.student_number}</p>` : ''}
-                <p><i class="fas fa-id-card w-5 text-center text-blue-400 drop-shadow-sm"></i> รหัสประจำตัว: ${s.student_id_card || '-'}</p>
-            `);
+        ${cls ? `<p><i class="fas fa-graduation-cap w-5 text-center text-blue-400 drop-shadow-sm"></i> ชั้นมัธยมศึกษาปีที่ ม.${cls.grade_level}/${cls.room_number}</p>` : ''}
+        ${enrollment?.student_number ? `<p><i class="fas fa-list-ol w-5 text-center text-blue-400 drop-shadow-sm"></i> เลขที่ ${enrollment.student_number}</p>` : ''}
+        <p><i class="fas fa-id-card w-5 text-center text-blue-400 drop-shadow-sm"></i> รหัสประจำตัว: ${s.student_id_card || '-'}</p>
+    `);
 
-            // คำนวณคะแนน
-            let score = 100;
-            let added = 0, deducted = 0;
+            // ✅ ใช้ค่าจาก View โดยตรง
+            const score = summary.total_score;
+            const added = summary.pos_score;
+            const deducted = summary.neg_score;
+
+            // ตารางประวัติ (ยังแสดง logs ทั้งหมด แต่เป็นแค่ประวัติ)
             let rows = '';
-
             if (s.behavior_logs && s.behavior_logs.length > 0) {
-                const sortedLogs = s.behavior_logs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                const sortedLogs = [...s.behavior_logs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
                 sortedLogs.forEach(log => {
-                    score += log.score_change;
-                    if (log.score_change > 0) added += log.score_change;
-                    else deducted += Math.abs(log.score_change);
-
                     const isPositive = log.score_change > 0;
                     const scoreColorClass = isPositive
                         ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
@@ -264,28 +271,27 @@
                     });
 
                     rows += `
-                        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
-                            <td class="px-6 py-4 text-[13px] text-slate-500 whitespace-nowrap">${dateStr} น.</td>
-                            <td class="px-6 py-4">
-                                <p class="font-bold text-slate-700 text-[13px]">${log.behavior_criteria?.title || 'ไม่ได้ระบุหัวข้อ'}</p>
-                                ${log.description ? `<p class="text-[11px] text-slate-400 mt-0.5">${log.description}</p>` : ''}
-                            </td>
-                            <td class="px-6 py-4 text-center">
-                                <span class="px-3 py-1 text-xs font-black rounded-xl border ${scoreColorClass}">
-                                    ${isPositive ? '+' : ''}${log.score_change}
-                                </span>
-                            </td>
-                        </tr>
-                    `;
+                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
+                    <td class="px-6 py-4 text-[13px] text-slate-500 whitespace-nowrap">${dateStr} น.</td>
+                    <td class="px-6 py-4">
+                        <p class="font-bold text-slate-700 text-[13px]">${log.behavior_criteria?.title || 'ไม่ได้ระบุหัวข้อ'}</p>
+                        ${log.description ? `<p class="text-[11px] text-slate-400 mt-0.5">${log.description}</p>` : ''}
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="px-3 py-1 text-xs font-black rounded-xl border ${scoreColorClass}">
+                            ${isPositive ? '+' : ''}${log.score_change}
+                        </span>
+                    </td>
+                </tr>
+            `;
                 });
-
-                $('#count-total').text(sortedLogs.length);
             } else {
                 rows = '<tr><td colspan="3" class="px-6 py-16 text-center text-slate-400 font-medium">ยังไม่มีประวัติการบันทึกคะแนน</td></tr>';
             }
 
             $('#count-added').text(added);
             $('#count-deducted').text(deducted);
+            $('#count-total').text((summary.pos_count || 0) + (summary.neg_count || 0));
             $('#history-list').html(rows);
 
             // แสดงคะแนนรวมพร้อมสี

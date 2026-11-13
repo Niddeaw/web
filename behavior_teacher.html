@@ -242,19 +242,19 @@
 
         async function loadMyStudents() {
             try {
+                // 1. ดึงรายชื่อนักเรียนในห้อง
                 const { data: enrolls, error } = await db.from('student_enrollments')
                     .select(`
-                        student_number,
-                        core_students (
-                            id,
-                            student_id_card,
-                            prefix,
-                            first_name,
-                            last_name,
-                            avatar_students_url,
-                            behavior_logs ( score_change )
-                        )
-                    `)
+                student_number,
+                core_students (
+                    id,
+                    student_id_card,
+                    prefix,
+                    first_name,
+                    last_name,
+                    avatar_students_url
+                )
+            `)
                     .eq('classroom_id', myClassroom.id)
                     .order('student_number', { ascending: true });
 
@@ -262,24 +262,40 @@
 
                 if (!enrolls || enrolls.length === 0) {
                     document.getElementById('teacherBody').innerHTML = `
-                        <tr><td colspan="5" class="text-center py-16 text-slate-400 font-bold">
-                            <i class="fas fa-user-slash text-4xl mb-3 block text-slate-300"></i>
-                            ยังไม่มีนักเรียนในห้องนี้
-                        </td></tr>
-                    `;
+                <tr><td colspan="5" class="text-center py-16 text-slate-400 font-bold">
+                    <i class="fas fa-user-slash text-4xl mb-3 block text-slate-300"></i>
+                    ยังไม่มีนักเรียนในห้องนี้
+                </td></tr>
+            `;
                     return;
                 }
 
+                // 2. ดึงคะแนนจาก View (Single Source of Truth)
+                const studentIds = enrolls.map(e => e.core_students?.id).filter(Boolean);
+                const { data: summaries, error: sumErr } = await db
+                    .from('behavior_student_summary')
+                    .select('student_id, total_score, pos_score, neg_score')
+                    .in('student_id', studentIds);
+
+                if (sumErr) throw sumErr;
+
+                const scoreMap = {};
+                (summaries || []).forEach(s => {
+                    scoreMap[s.student_id] = s;
+                });
+
+                // 3. รวมข้อมูล
                 studentData = enrolls.map(item => {
                     const s = item.core_students || {};
-                    const logs = s.behavior_logs || [];
-                    const totalScore = 100 + logs.reduce((sum, l) => sum + (l.score_change || 0), 0);
+                    const summary = scoreMap[s.id] || {};
                     return {
                         id: s.id || '',
                         no: item.student_number || '-',
                         sid: s.student_id_card || '-',
                         name: `${s.prefix || ''}${s.first_name || ''} ${s.last_name || ''}`.trim() || 'ไม่ระบุชื่อ',
-                        score: totalScore,
+                        score: summary.total_score ?? 100,  // ✅ ใช้จาก View
+                        pos: summary.pos_score ?? 0,
+                        neg: summary.neg_score ?? 0,
                         avatar: s.avatar_students_url || null,
                         raw: s
                     };
@@ -290,10 +306,10 @@
             } catch (err) {
                 console.error('Error loading students:', err);
                 document.getElementById('teacherBody').innerHTML = `
-                    <tr><td colspan="5" class="text-center py-8 text-red-500 font-bold">
-                        <i class="fas fa-exclamation-triangle mr-2"></i> เกิดข้อผิดพลาด: ${err.message}
-                    </td></tr>
-                `;
+            <tr><td colspan="5" class="text-center py-8 text-red-500 font-bold">
+                <i class="fas fa-exclamation-triangle mr-2"></i> เกิดข้อผิดพลาด: ${err.message}
+            </td></tr>
+        `;
             }
         }
 
