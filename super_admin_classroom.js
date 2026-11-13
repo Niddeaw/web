@@ -1530,19 +1530,22 @@ async function openStudentNumberReorder() {
             : `<span class="px-2 py-0.5 text-[10px] font-bold rounded bg-red-100 text-red-700">${enr.status || '-'}</span>`;
         rowsHtml += `
       <tr data-enrollment-id="${enr.id}"
-          class="reorder-row bg-white hover:bg-blue-50 border-b border-gray-100 cursor-grab active:cursor-grabbing transition-colors">
+          class="reorder-row bg-white hover:bg-blue-50 border-b border-gray-100 transition-colors">
         <td class="p-2 text-center font-mono font-bold text-indigo-600 order-number w-12 select-none">${num}</td>
         <td class="p-2 text-sm font-bold text-blue-700 select-none">${s.student_id_card || '-'}</td>
         <td class="p-2 text-sm text-gray-800 select-none">${s.prefix || ''}${s.first_name} ${s.last_name}</td>
         <td class="p-2 text-center select-none">${stBadge}</td>
-        <td class="p-2 text-center text-gray-300 select-none drag-handle-cell"><i class="fas fa-grip-vertical"></i></td>
+        <td class="p-2 text-center text-gray-400 drag-handle-cell cursor-grab active:cursor-grabbing" 
+            title="ลากเพื่อจัดลำดับ">
+          <i class="fas fa-grip-vertical text-lg pointer-events-none"></i>
+        </td>
       </tr>`;
     });
 
     const html = `
     <div class="flex items-center gap-2 text-xs text-blue-700 mb-3 bg-blue-50 border border-blue-100 p-2.5 rounded-xl">
       <i class="fas fa-hand-pointer text-blue-500"></i>
-      <span>ลากแถวขึ้น-ลงเพื่อจัดลำดับ — เลขที่จะอัปเดตอัตโนมัติ — กด <b>บันทึก</b> เพื่อยืนยัน</span>
+      <span>ลากที่ไอคอน <b>⋮⋮</b> ทางขวาเพื่อจัดลำดับ — เลขที่จะอัปเดตอัตโนมัติ — กด <b>บันทึก</b> เพื่อยืนยัน</span>
     </div>
     <div class="overflow-auto rounded-xl border border-gray-200" style="max-height:55vh;">
       <table class="w-full border-collapse bg-white text-left" id="reorder-student-table">
@@ -1552,7 +1555,7 @@ async function openStudentNumberReorder() {
             <th class="p-2">รหัสนักเรียน</th>
             <th class="p-2">ชื่อ-สกุล</th>
             <th class="p-2 text-center">สถานะ</th>
-            <th class="p-2 w-10"></th>
+            <th class="p-2 w-12 text-center">ลาก</th>
           </tr>
         </thead>
         <tbody id="reorder-student-tbody">${rowsHtml}</tbody>
@@ -1571,13 +1574,21 @@ async function openStudentNumberReorder() {
         showLoaderOnConfirm: true,
         didOpen: () => {
             const tbody = document.getElementById('reorder-student-tbody');
-            if (!tbody || typeof Sortable === 'undefined') return;
+            if (!tbody || typeof Sortable === 'undefined') {
+                console.error('❌ Sortable library ไม่พร้อมใช้งาน');
+                return;
+            }
+
+            // ✅ แก้ handle ให้ชี้ที่ช่องลาก (ไม่ใช่ทั้งแถว)
             new Sortable(tbody, {
                 animation: 180,
                 ghostClass: 'opacity-30',
                 chosenClass: 'bg-indigo-50',
-                dragClass: 'shadow-lg',
-                handle: '.reorder-row',
+                dragClass: 'shadow-lg bg-white',
+                handle: '.drag-handle-cell',     // ✅ handle อยู่ที่ <td> ช่องลาก
+                forceFallback: true,              // ✅ ใช้ fallback สำหรับ table row
+                fallbackClass: 'sortable-fallback-tr',
+                fallbackOnBody: true,
                 onEnd: () => { _updateStudentOrderNumbers(); }
             });
         },
