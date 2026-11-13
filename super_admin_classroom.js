@@ -232,7 +232,7 @@ function getStudentAvatarHtml(avatarUrl, studentName) {
                 title="คลิกเพื่อดูรูปใหญ่" />`;
 }
 
-window.viewStudentImage = function(imgUrl, studentName) {
+window.viewStudentImage = function (imgUrl, studentName) {
     Swal.fire({
         title: studentName,
         imageUrl: imgUrl,
@@ -363,13 +363,13 @@ function attachStudentFileInputEvent() {
     const fileInput = document.getElementById('student-avatar-file');
     if (!fileInput) return;
     if (fileInput.hasListener) return;
-    fileInput.addEventListener('change', function(e) {
+    fileInput.addEventListener('change', function (e) {
         if (e.target.files && e.target.files[0]) {
             _pendingStudentAvatarFile = e.target.files[0];
             const badge = document.getElementById('student-avatar-badge');
             if (badge) badge.classList.remove('hidden');
             const reader = new FileReader();
-            reader.onload = function(ev) {
+            reader.onload = function (ev) {
                 const fullName = `${document.getElementById('s_prefix').value}${document.getElementById('s_fname').value} ${document.getElementById('s_lname').value}`;
                 setStudentAvatar('student-avatar-preview', fullName, ev.target.result);
             };
@@ -1283,11 +1283,11 @@ async function checkUnassignedStudents() {
                     </thead>
                     <tbody id="unassigned-tbody" class="divide-y divide-slate-100">
                         ${unassignedStudents.map((s, index) => {
-                            const fullName = `${s.prefix || ''}${s.first_name} ${s.last_name}`;
-                            const avatarHtml = getStudentAvatarHtml(s.avatar_students_url, fullName);
-                            const searchText = `${s.student_id_card || ''} ${s.national_id || ''} ${s.prefix || ''}${s.first_name} ${s.last_name}`.toLowerCase();
-                            
-                            return `
+            const fullName = `${s.prefix || ''}${s.first_name} ${s.last_name}`;
+            const avatarHtml = getStudentAvatarHtml(s.avatar_students_url, fullName);
+            const searchText = `${s.student_id_card || ''} ${s.national_id || ''} ${s.prefix || ''}${s.first_name} ${s.last_name}`.toLowerCase();
+
+            return `
                             <tr class="hover:bg-rose-50/50 transition-colors unassigned-row" data-search="${searchText}">
                                 <td class="p-3 text-center text-slate-400 font-medium row-index">${index + 1}</td>
                                 <td class="p-3 text-center">${avatarHtml}</td>
@@ -1304,7 +1304,7 @@ async function checkUnassignedStudents() {
                                 </td>
                             </tr>
                             `;
-                        }).join('')}
+        }).join('')}
                     </tbody>
                 </table>
                 <div id="unassigned-no-result" class="hidden text-center py-8 text-gray-400">
@@ -1594,15 +1594,58 @@ async function openStudentNumberReorder() {
         },
         preConfirm: async () => {
             const rows = document.querySelectorAll('#reorder-student-tbody tr');
-            const updates = Array.from(rows).map((row, index) =>
-                db.from('student_enrollments').update({ student_number: index + 1 }).eq('id', row.dataset.enrollmentId)
-            );
+
+            // ✅ 1) ต้องมีแถว
+            if (rows.length === 0) {
+                Swal.showValidationMessage('ไม่พบรายชื่อนักเรียนในตาราง');
+                return false;
+            }
+
+            const updates = [];
+            const missingIdRows = [];
+
+            // ✅ 2) ตรวจ data-enrollment-id ก่อน
+            for (let i = 0; i < rows.length; i++) {
+                const enrollId = rows[i].dataset.enrollmentId;
+                if (!enrollId) {
+                    missingIdRows.push(i + 1);
+                    continue;
+                }
+                updates.push(
+                    db.from('student_enrollments')
+                        .update({ student_number: i + 1 })
+                        .eq('id', enrollId)
+                        .select('id, student_number')   // ✅ select กลับมาเช็ค
+                );
+            }
+
+            if (missingIdRows.length > 0) {
+                Swal.showValidationMessage(`ไม่พบ enrollment ID ในแถวที่ ${missingIdRows.join(', ')}`);
+                return false;
+            }
+
             try {
                 const results = await Promise.all(updates);
+
+                // ✅ 3) ตรวจ error
                 const failed = results.filter(r => r.error);
-                if (failed.length > 0) throw new Error(failed[0].error.message);
+                if (failed.length > 0) {
+                    throw new Error(failed[0].error.message);
+                }
+
+                // ✅ 4) ตรวจว่ามีแถวถูกอัปเดตจริง (กัน RLS บล็อกเงียบ)
+                const emptyUpdates = results.filter(r => !r.data || r.data.length === 0);
+                if (emptyUpdates.length > 0) {
+                    throw new Error(
+                        `อัปเดต ${emptyUpdates.length} แถวไม่สำเร็จ — ตรวจสอบสิทธิ์ RLS ` +
+                        `ของตาราง student_enrollments (ต้องมี policy UPDATE)`
+                    );
+                }
+
+                console.log('✅ reorder saved:', results.map(r => r.data));
                 return true;
             } catch (err) {
+                console.error('❌ reorder save error:', err);
                 Swal.showValidationMessage(`บันทึกไม่สำเร็จ: ${err.message}`);
                 return false;
             }
@@ -1666,7 +1709,7 @@ function setStudentAvatar(displayElementId, studentName, imageUrl) {
         try {
             const { data: { publicUrl } } = db.storage.from('avatars').getPublicUrl(imageUrl);
             finalUrl = publicUrl;
-        } catch(e) { console.warn(e); }
+        } catch (e) { console.warn(e); }
     }
 
     container.innerHTML = `<img src="${finalUrl}"
