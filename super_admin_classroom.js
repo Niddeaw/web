@@ -13,10 +13,12 @@ async function loadClassrooms() {
     try {
         if ($.fn.DataTable.isDataTable('#classroomsTable')) $('#classroomsTable').DataTable().destroy();
 
+        // 1. ดึงข้อมูลปี/เทอม ปัจจุบัน
         const { data: schoolInfo } = await db.from('core_school_info').select('current_academic_year, current_semester').single();
-        const currentYear = schoolInfo ? schoolInfo.current_academic_year : '';
-        const currentTerm = schoolInfo ? schoolInfo.current_semester : '';
+        const currentYear = schoolInfo ? String(schoolInfo.current_academic_year).trim() : '';
+        const currentTerm = schoolInfo ? String(schoolInfo.current_semester).trim() : '';
 
+        // 2. ดึงข้อมูลห้องเรียน (กรองตามปี/เทอม)
         let query = db.from('core_classrooms')
             .select(`*, adv1:core_personnel!adviser_id_1(first_name, last_name), adv2:core_personnel!adviser_id_2(first_name, last_name)`)
             .order('grade_level', { ascending: true })
@@ -25,17 +27,76 @@ async function loadClassrooms() {
         if (currentYear) query = query.eq('academic_year', currentYear);
         if (currentTerm) query = query.eq('semester', currentTerm);
 
-        const { data, error } = await query;
+        const { data: classrooms, error } = await query;
         if (error) throw error;
+
+        // 3. ดึงข้อมูลนักเรียนทั้งหมด (เพื่อเอาคำนำหน้า ไปเช็คชาย/หญิง)
+        const { data: students, error: stuError } = await db.from('core_students').select('id, prefix');
+        if (stuError) console.error("Error loading students:", stuError);
+
+        // สร้าง Map สำหรับค้นหาคำนำหน้านักเรียนด้วย ID (เพื่อความรวดเร็ว)
+        const studentPrefixMap = {};
+        if (students) {
+            students.forEach(s => {
+                studentPrefixMap[s.id] = String(s.prefix || s.name_prefix || s.title || '').trim();
+            });
+        }
+
+        // 4. ดึงข้อมูลการลงทะเบียนเรียน (student_enrollments) ตามปี/เทอม ปัจจุบัน
+        let enrollQuery = db.from('student_enrollments').select('classroom_id, student_id');
+        if (currentYear) enrollQuery = enrollQuery.eq('academic_year', currentYear);
+        if (currentTerm) enrollQuery = enrollQuery.eq('semester', currentTerm);
+        // เพิ่มบรรทัดนี้ เพื่อกรองเอาเฉพาะสถานะปกติ
+        enrollQuery = enrollQuery.eq('status', 'ปกติ');
+        
+        const { data: enrollments, error: enrollError } = await enrollQuery;
+        if (enrollError) console.error("Error loading enrollments:", enrollError);
+
+        // 5. คำนวณสถิติ
+        const statsMap = {};
+
+        if (!enrollError && enrollments && enrollments.length > 0) {
+            enrollments.forEach(enr => {
+                if (!enr.classroom_id) return;
+
+                const classIdStr = String(enr.classroom_id).trim();
+
+                // ดึงคำนำหน้าจาก student_id
+                const prefix = studentPrefixMap[enr.student_id] || '';
+
+                if (!statsMap[classIdStr]) {
+                    statsMap[classIdStr] = { male: 0, female: 0, total: 0 };
+                }
+
+                if (['เด็กชาย', 'นาย', 'ด.ช.', 'ช'].includes(prefix)) {
+                    statsMap[classIdStr].male++;
+                } else if (['เด็กหญิง', 'นางสาว', 'ด.ญ.', 'ญ'].includes(prefix)) {
+                    statsMap[classIdStr].female++;
+                }
+
+                statsMap[classIdStr].total++;
+            });
+        }
 
         const tbody = document.getElementById('tb-classrooms');
         const select = document.getElementById('filterStudentClass');
         select.innerHTML = '<option value="">-- เลือกห้องเรียน --</option>';
 
-        if (data && data.length > 0) {
-            tbody.innerHTML = data.map(cls => {
+        if (classrooms && classrooms.length > 0) {
+            tbody.innerHTML = classrooms.map(cls => {
                 const adv1 = cls.adv1 ? `${cls.adv1.first_name} ${cls.adv1.last_name}` : '<span class="text-red-500 text-sm">ยังไม่ระบุ</span>';
                 const adv2 = cls.adv2 ? `${cls.adv2.first_name} ${cls.adv2.last_name}` : '<span class="text-gray-400 italic">-</span>';
+
+                const clsIdStr = String(cls.id).trim();
+                const stat = statsMap[clsIdStr] || { male: 0, female: 0, total: 0 };
+
+                const studentCountHtml = `
+                    <div class="flex items-center justify-center gap-1.5 text-sm">
+                        <span class="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg border border-blue-200 shadow-sm" title="ชาย">ช ${stat.male}</span>
+                        <span class="bg-pink-50 text-pink-700 px-2.5 py-1 rounded-lg border border-pink-200 shadow-sm" title="หญิง">ญ ${stat.female}</span>
+                        <span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-300 font-bold shadow-sm" title="รวม">${stat.total}</span>
+                    </div>
+                `;
 
                 select.innerHTML += `<option value="${cls.id}">ม.${cls.grade_level}/${cls.room_number} (เทอม ${cls.semester}/${cls.academic_year})</option>`;
 
@@ -43,12 +104,12 @@ async function loadClassrooms() {
                 <tr class="hover:bg-blue-50 transition-colors">
                     <td class="py-3 px-4 text-center font-bold text-gray-700">${cls.semester}/${cls.academic_year}</td>
                     <td class="py-3 px-4 text-center font-bold text-blue-700">ม.${cls.grade_level}/${cls.room_number}</td>
-                    <td class="py-3 px-4 text-gray-600">${cls.study_plan || '-'}</td>
+                    <td class="py-3 px-4 text-center">${studentCountHtml}</td>
                     <td class="py-3 px-4 text-gray-700 font-medium">${adv1}</td>
                     <td class="py-3 px-4 text-gray-600 text-sm">${adv2}</td>
                     <td class="py-3 px-4 text-center whitespace-nowrap">
-                        <button onclick="editClassroom('${cls.id}', '${cls.academic_year}', '${cls.semester}', '${cls.grade_level}', '${cls.room_number}', '${cls.study_plan || ''}', '${cls.adviser_id_1 || ''}', '${cls.adviser_id_2 || ''}')" class="text-yellow-600 hover:text-yellow-800 text-sm font-bold px-2 rounded hover:bg-yellow-100 transition-colors"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>
-                        <button onclick="deleteClassroom('${cls.id}', 'ม.${cls.grade_level}/${cls.room_number}')" class="text-red-600 hover:text-red-800 text-sm font-bold px-2 ml-1 rounded hover:bg-red-100 transition-colors"><i class="fa-solid fa-trash-can"></i> ลบ</button>
+                        <button onclick="editClassroom('${cls.id}', '${cls.academic_year}', '${cls.semester}', '${cls.grade_level}', '${cls.room_number}', '${cls.study_plan || ''}', '${cls.adviser_id_1 || ''}', '${cls.adviser_id_2 || ''}')" class="text-yellow-600 hover:text-yellow-800 text-sm font-bold px-2 py-1 rounded-md hover:bg-yellow-100 transition-colors"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>
+                        <button onclick="deleteClassroom('${cls.id}', 'ม.${cls.grade_level}/${cls.room_number}')" class="text-red-600 hover:text-red-800 text-sm font-bold px-2 py-1 ml-1 rounded-md hover:bg-red-100 transition-colors"><i class="fa-solid fa-trash-can"></i> ลบ</button>
                     </td>
                 </tr>`;
             }).join('');
@@ -60,9 +121,15 @@ async function loadClassrooms() {
             scrollX: true,
             language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
             pageLength: 10,
-            destroy: true
+            destroy: true,
+            columnDefs: [
+                { orderable: false, targets: [2] }
+            ]
         });
-    } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
+    } catch (err) {
+        console.error("Main Error:", err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
 }
 
 async function ensurePersonnelListLoaded() {
@@ -1530,22 +1597,19 @@ async function openStudentNumberReorder() {
             : `<span class="px-2 py-0.5 text-[10px] font-bold rounded bg-red-100 text-red-700">${enr.status || '-'}</span>`;
         rowsHtml += `
       <tr data-enrollment-id="${enr.id}"
-          class="reorder-row bg-white hover:bg-blue-50 border-b border-gray-100 transition-colors">
+          class="reorder-row bg-white hover:bg-blue-50 border-b border-gray-100 cursor-grab active:cursor-grabbing transition-colors">
         <td class="p-2 text-center font-mono font-bold text-indigo-600 order-number w-12 select-none">${num}</td>
         <td class="p-2 text-sm font-bold text-blue-700 select-none">${s.student_id_card || '-'}</td>
         <td class="p-2 text-sm text-gray-800 select-none">${s.prefix || ''}${s.first_name} ${s.last_name}</td>
         <td class="p-2 text-center select-none">${stBadge}</td>
-        <td class="p-2 text-center text-gray-400 drag-handle-cell cursor-grab active:cursor-grabbing" 
-            title="ลากเพื่อจัดลำดับ">
-          <i class="fas fa-grip-vertical text-lg pointer-events-none"></i>
-        </td>
+        <td class="p-2 text-center text-gray-300 select-none drag-handle-cell"><i class="fas fa-grip-vertical"></i></td>
       </tr>`;
     });
 
     const html = `
     <div class="flex items-center gap-2 text-xs text-blue-700 mb-3 bg-blue-50 border border-blue-100 p-2.5 rounded-xl">
       <i class="fas fa-hand-pointer text-blue-500"></i>
-      <span>ลากที่ไอคอน <b>⋮⋮</b> ทางขวาเพื่อจัดลำดับ — เลขที่จะอัปเดตอัตโนมัติ — กด <b>บันทึก</b> เพื่อยืนยัน</span>
+      <span>ลากแถวขึ้น-ลงเพื่อจัดลำดับ — เลขที่จะอัปเดตอัตโนมัติ — กด <b>บันทึก</b> เพื่อยืนยัน</span>
     </div>
     <div class="overflow-auto rounded-xl border border-gray-200" style="max-height:55vh;">
       <table class="w-full border-collapse bg-white text-left" id="reorder-student-table">
@@ -1555,7 +1619,7 @@ async function openStudentNumberReorder() {
             <th class="p-2">รหัสนักเรียน</th>
             <th class="p-2">ชื่อ-สกุล</th>
             <th class="p-2 text-center">สถานะ</th>
-            <th class="p-2 w-12 text-center">ลาก</th>
+            <th class="p-2 w-10"></th>
           </tr>
         </thead>
         <tbody id="reorder-student-tbody">${rowsHtml}</tbody>
@@ -1574,78 +1638,27 @@ async function openStudentNumberReorder() {
         showLoaderOnConfirm: true,
         didOpen: () => {
             const tbody = document.getElementById('reorder-student-tbody');
-            if (!tbody || typeof Sortable === 'undefined') {
-                console.error('❌ Sortable library ไม่พร้อมใช้งาน');
-                return;
-            }
-
-            // ✅ แก้ handle ให้ชี้ที่ช่องลาก (ไม่ใช่ทั้งแถว)
+            if (!tbody || typeof Sortable === 'undefined') return;
             new Sortable(tbody, {
                 animation: 180,
-                ghostClass: 'sortable-ghost-row',        // ✅ ชื่อคลาสเดียว
-                chosenClass: 'sortable-chosen-row',      // ✅ ชื่อคลาสเดียว
-                dragClass: 'sortable-drag-row',          // ✅ ชื่อคลาสเดียว
-                handle: '.drag-handle-cell',
-                forceFallback: true,
-                fallbackClass: 'sortable-fallback-tr',   // ✅ ถูกอยู่แล้ว
-                fallbackOnBody: true,
+                ghostClass: 'opacity-30',
+                chosenClass: 'bg-indigo-50',
+                dragClass: 'shadow-lg',
+                handle: '.reorder-row',
                 onEnd: () => { _updateStudentOrderNumbers(); }
             });
         },
         preConfirm: async () => {
             const rows = document.querySelectorAll('#reorder-student-tbody tr');
-
-            // ✅ 1) ต้องมีแถว
-            if (rows.length === 0) {
-                Swal.showValidationMessage('ไม่พบรายชื่อนักเรียนในตาราง');
-                return false;
-            }
-
-            const updates = [];
-            const missingIdRows = [];
-
-            // ✅ 2) ตรวจ data-enrollment-id ก่อน
-            for (let i = 0; i < rows.length; i++) {
-                const enrollId = rows[i].dataset.enrollmentId;
-                if (!enrollId) {
-                    missingIdRows.push(i + 1);
-                    continue;
-                }
-                updates.push(
-                    db.from('student_enrollments')
-                        .update({ student_number: i + 1 })
-                        .eq('id', enrollId)
-                        .select('id, student_number')   // ✅ select กลับมาเช็ค
-                );
-            }
-
-            if (missingIdRows.length > 0) {
-                Swal.showValidationMessage(`ไม่พบ enrollment ID ในแถวที่ ${missingIdRows.join(', ')}`);
-                return false;
-            }
-
+            const updates = Array.from(rows).map((row, index) =>
+                db.from('student_enrollments').update({ student_number: index + 1 }).eq('id', row.dataset.enrollmentId)
+            );
             try {
                 const results = await Promise.all(updates);
-
-                // ✅ 3) ตรวจ error
                 const failed = results.filter(r => r.error);
-                if (failed.length > 0) {
-                    throw new Error(failed[0].error.message);
-                }
-
-                // ✅ 4) ตรวจว่ามีแถวถูกอัปเดตจริง (กัน RLS บล็อกเงียบ)
-                const emptyUpdates = results.filter(r => !r.data || r.data.length === 0);
-                if (emptyUpdates.length > 0) {
-                    throw new Error(
-                        `อัปเดต ${emptyUpdates.length} แถวไม่สำเร็จ — ตรวจสอบสิทธิ์ RLS ` +
-                        `ของตาราง student_enrollments (ต้องมี policy UPDATE)`
-                    );
-                }
-
-                console.log('✅ reorder saved:', results.map(r => r.data));
+                if (failed.length > 0) throw new Error(failed[0].error.message);
                 return true;
             } catch (err) {
-                console.error('❌ reorder save error:', err);
                 Swal.showValidationMessage(`บันทึกไม่สำเร็จ: ${err.message}`);
                 return false;
             }
