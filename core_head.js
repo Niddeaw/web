@@ -74,8 +74,12 @@ const coreHeadHTML = `
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.9/locale/th.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <!-- ✅ QR Code Generator (ฟรี ไม่มีโฆษณา) -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <!-- ✅ ตัวช่วย gen SVG + ดาวน์โหลด -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
     
-        <!-- ✅ Sidebar Actions Library (โหลดก่อน dashboard_sidebar.js) -->
+    <!-- ✅ Sidebar Actions Library (โหลดก่อน dashboard_sidebar.js) -->
     <script src="dashboard_sidebar_actions.js"></script>
     
     <!-- ✅ Module Admin Helper (ใช้ร่วมทุกโมดูล) -->

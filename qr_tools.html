@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Tools | WRK System</title>
+
+    <script src="core_head.js"></script>
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
+
+    <style>
+        /* ============ QR Module CSS ============ */
+        .qr-type-tabs {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            scrollbar-width: thin;
+        }
+        .qr-type-tab {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 700;
+            border: 1.5px solid #e2e8f0;
+            background: #fff;
+            color: #64748b;
+            cursor: pointer;
+            transition: all .2s;
+        }
+        .qr-type-tab:hover { border-color: #c7d2fe; color: #4f46e5; }
+        .qr-type-tab.active {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border-color: transparent;
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(99,102,241,.35);
+        }
+
+        .qr-preview-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 340px;
+            border-radius: 20px;
+            border: 2px dashed #e2e8f0;
+            background:
+                linear-gradient(45deg, #f8fafc 25%, transparent 25%),
+                linear-gradient(-45deg, #f8fafc 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #f8fafc 75%),
+                linear-gradient(-45deg, transparent 75%, #f8fafc 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            padding: 24px;
+            position: relative;
+        }
+        .qr-preview-box canvas,
+        .qr-preview-box svg {
+            border-radius: 12px;
+            background: #fff;
+            padding: 12px;
+            box-shadow: 0 8px 24px rgba(15,23,42,.08);
+        }
+
+        .qr-form-group {
+            margin-bottom: 14px;
+        }
+        .qr-form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: #475569;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: .3px;
+        }
+        .qr-form-group input,
+        .qr-form-group select,
+        .qr-form-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all .2s;
+            font-family: inherit;
+        }
+        .qr-form-group input:focus,
+        .qr-form-group select:focus,
+        .qr-form-group textarea:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99,102,241,.15);
+        }
+
+        .qr-color-swatch {
+            width: 40px; height: 40px;
+            border-radius: 10px;
+            border: 2px solid #e2e8f0;
+            cursor: pointer;
+            padding: 2px;
+            background: #fff;
+        }
+        .qr-color-swatch input {
+            width: 100%; height: 100%;
+            border: none; padding: 0; cursor: pointer;
+            border-radius: 6px;
+        }
+
+        .qr-history-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid #eef2f7;
+            background: #fff;
+            cursor: pointer;
+            transition: all .15s;
+            margin-bottom: 8px;
+        }
+        .qr-history-item:hover {
+            border-color: #c7d2fe;
+            background: #f5f3ff;
+        }
+        .qr-history-item img {
+            width: 44px; height: 44px;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+
+        @media (max-width: 768px) {
+            .qr-preview-box { min-height: 260px; }
+        }
+    </style>
+</head>
+
+<body class="text-gray-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
+    <div class="d-app">
+        <aside class="d-sidebar" id="dSidebar"></aside>
+        <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
+
+        <main class="d-main" id="dMain">
+            <header class="d-topbar" id="dTopbar"></header>
+
+            <div style="padding:0 0 12px;" class="space-y-6">
+
+                <!-- ========= SECTION: Generator ========= -->
+                <section id="tab-generator" class="tab-content">
+                    <div class="glass-panel p-4 md:p-6 rounded-2xl shadow-sm">
+
+                        <h3 class="text-lg font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+                            <i class="fas fa-qrcode text-indigo-600"></i>
+                            สร้าง QR Code
+                        </h3>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                            <!-- ===== LEFT: ฟอร์ม ===== -->
+                            <div>
+                                <!-- Tabs ประเภท -->
+                                <div class="qr-type-tabs mb-4" id="qrTypeTabs">
+                                    <button class="qr-type-tab active" data-type="text">
+                                        <i class="fas fa-font"></i> ข้อความ/URL
+                                    </button>
+                                    <button class="qr-type-tab" data-type="wifi">
+                                        <i class="fas fa-wifi"></i> Wi-Fi
+                                    </button>
+                                    <button class="qr-type-tab" data-type="vcard">
+                                        <i class="fas fa-address-card"></i> นามบัตร
+                                    </button>
+                                    <button class="qr-type-tab" data-type="phone">
+                                        <i class="fas fa-phone"></i> เบอร์โทร
+                                    </button>
+                                    <button class="qr-type-tab" data-type="email">
+                                        <i class="fas fa-envelope"></i> อีเมล
+                                    </button>
+                                </div>
+
+                                <!-- ฟอร์มแต่ละประเภท -->
+                                <div id="qrFormContainer"></div>
+
+                                <!-- ตัวเลือกสไตล์ -->
+                                <div class="mt-4 pt-4 border-t border-slate-100">
+                                    <div class="text-xs font-bold text-slate-500 uppercase mb-3">ปรับแต่งสไตล์</div>
+
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="qr-form-group">
+                                            <label>สี QR</label>
+                                            <div class="flex items-center gap-2">
+                                                <div class="qr-color-swatch">
+                                                    <input type="color" id="qrColorDark" value="#0f172a">
+                                                </div>
+                                                <span class="text-xs text-slate-500">หลัก</span>
+                                            </div>
+                                        </div>
+                                        <div class="qr-form-group">
+                                            <label>สีพื้นหลัง</label>
+                                            <div class="flex items-center gap-2">
+                                                <div class="qr-color-swatch">
+                                                    <input type="color" id="qrColorLight" value="#ffffff">
+                                                </div>
+                                                <span class="text-xs text-slate-500">พื้น</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="qr-form-group">
+                                        <label>ขนาด</label>
+                                        <select id="qrSize">
+                                            <option value="256">เล็ก (256px)</option>
+                                            <option value="384" selected>กลาง (384px)</option>
+                                            <option value="512">ใหญ่ (512px)</option>
+                                            <option value="768">พิมพ์ (768px)</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="qr-form-group">
+                                        <label>ระดับการแก้ไขข้อผิดพลาด (Error Correction)</label>
+                                        <select id="qrECC">
+                                            <option value="L">L — เบา (容量ต่ำ)</option>
+                                            <option value="M" selected>M — กลาง (แนะนำ)</option>
+                                            <option value="Q">Q — สูง</option>
+                                            <option value="H">H — สูงสุด (ใส่โลโก้ได้)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ===== RIGHT: Preview ===== -->
+                            <div>
+                                <div class="qr-preview-box" id="qrPreviewBox">
+                                    <div class="text-center text-slate-400">
+                                        <i class="fas fa-qrcode text-5xl mb-3 text-slate-300"></i>
+                                        <p class="font-bold">QR Code จะแสดงที่นี่</p>
+                                        <p class="text-xs mt-1">กรอกข้อมูลด้านซ้ายเพื่อสร้าง</p>
+                                    </div>
+                                </div>
+
+                                <!-- ปุ่ม Actions -->
+                                <div class="grid grid-cols-2 gap-3 mt-4">
+                                    <button onclick="QRModule.downloadPNG()"
+                                        class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors">
+                                        <i class="fas fa-download"></i> PNG
+                                    </button>
+                                    <button onclick="QRModule.downloadSVG()"
+                                        class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition-colors">
+                                        <i class="fas fa-file-code"></i> SVG
+                                    </button>
+                                    <button onclick="QRModule.printQR()"
+                                        class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition-colors">
+                                        <i class="fas fa-print"></i> พิมพ์
+                                    </button>
+                                    <button onclick="QRModule.saveToHistory()"
+                                        class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-700 font-bold text-sm transition-colors">
+                                        <i class="fas fa-bookmark"></i> บันทึก
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ========= SECTION: History ========= -->
+                <section id="tab-history" class="tab-content hidden">
+                    <div class="glass-panel p-4 md:p-6 rounded-2xl shadow-sm">
+                        <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-2">
+                            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fas fa-history text-indigo-600"></i>
+                                ประวัติที่สร้าง
+                            </h3>
+                            <button onclick="QRModule.clearHistory()"
+                                class="text-xs font-bold text-rose-600 hover:text-rose-800 px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors">
+                                <i class="fas fa-trash mr-1"></i>ล้างทั้งหมด
+                            </button>
+                        </div>
+                        <div id="qrHistoryList">
+                            <div class="text-center text-slate-400 py-10">
+                                <i class="fas fa-inbox text-4xl mb-3 text-slate-300"></i>
+                                <p>ยังไม่มีประวัติ</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- ================= Libraries ================= -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- ================= Core scripts ================= -->
+    <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar.js"></script>
+    <script src="dashboard_charts.js"></script>
+
+    <!-- ================= Script เฉพาะโมดูล ================= -->
+    <script src="qr_tools.js"></script>
+
+    <!-- =======================================================
+         ✅ Fallback Config + Init Module Sidebar
+         ======================================================= -->
+    <script>
+        const MODULE_KEY  = 'qr_tools';
+        const MODULE_NAME = 'QR Code Tools';
+
+        function getModuleFallbackConfig() {
+            return {
+                brand: {
+                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+                    name: 'WRK System',
+                    subtitle: MODULE_NAME
+                },
+                mainMenuTitle: 'เมนูหลัก',
+                mainMenuCollapsible: false,
+                mainMenu: [
+                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html' }
+                ],
+                showAllDepartments: false,
+                departmentsTitle: '',
+                departments: [],
+                moduleMenus: [
+                    {
+                        title: 'QR Tools',
+                        sectionId: 'sec-qr',
+                        collapsible: false,
+                        defaultOpen: true,
+                        items: [
+                            { id: 'nav-generator', icon: 'fa-qrcode', label: 'สร้าง QR Code', onclick: "switchTab('generator')" },
+                            { id: 'nav-history', icon: 'fa-history', label: 'ประวัติ', onclick: "switchTab('history')" }
+                        ]
+                    }
+                ],
+                footerMenuTitle: 'การตั้งค่า',
+                footerCollapsible: false,
+                footerMenu: [],
+                logoutItem: {
+                    icon: 'fa-power-off',
+                    label: 'ออกจากระบบ',
+                    onclick: 'logout()',
+                    class: 'logout'
+                },
+                facebook: {
+                    href: 'https://www.facebook.com/WRKOfficial',
+                    icon: 'fa-brands fa-facebook',
+                    label: 'ติดตามเพจโรงเรียน'
+                }
+            };
+        }
+
+        initModuleSidebar({
+            moduleKey: MODULE_KEY,
+            pageTitle: MODULE_NAME,
+            activeId: 'nav-generator',
+            topbarButtons: [],
+            fallbackConfig: getModuleFallbackConfig()
+        });
+    </script>
+</body>
+</html>
