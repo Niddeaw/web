@@ -577,30 +577,53 @@ window.generateLeavePDF = async function (id, systemSettings) {
 };
 
 // ==========================================
-// ตรวจสอบใบลาซ้ำ (personnel_id, type, start_date, end_date)
+// ✅ checkDuplicateLeave — ตรวจการลาซ้ำ (overlap)
 // ==========================================
-window.checkDuplicateLeave = async function (personnelId, type, startDate, endDate, excludeId = null) {
-    try {
-        let query = window.db
-            .from('leave_requests')
-            .select('id, status, type, start_date, end_date, core_personnel!personnel_id(prefix, first_name, last_name)')
-            .eq('personnel_id', personnelId)
-            .eq('type', type)
-            .eq('start_date', startDate)
-            .eq('end_date', endDate)
-            .neq('status', 'ไม่อนุมัติ'); // ข้ามรายการที่ถูกไม่อนุมัติ
-
-        if (excludeId) {
-            query = query.neq('id', excludeId);
-        }
-
-        const { data, error } = await query.maybeSingle();
-        if (error) throw error;
-        return { exists: !!data, existingLeave: data };
-    } catch (err) {
-        console.error('checkDuplicateLeave error:', err);
-        return { exists: false, existingLeave: null };
+window.checkDuplicateLeave = async function (personnelId, leaveType, startDate, endDate, excludeId = null, opts = {}) {
+    if (!personnelId || !startDate || !endDate) {
+        return { exists: false };
     }
+
+    // เทียบเป็นสตริง YYYY-MM-DD (ไม่มีปัญหา timezone)
+    const s2 = String(startDate).slice(0, 10);
+    const e2 = String(endDate).slice(0, 10);
+    if (e2 < s2) {
+        return { exists: false, invalid: true };
+    }
+
+    // ❗ ถ้า query ล้มเหลว → throw ให้ผู้เรียก "บล็อก" (ห้าม fail-open)
+    let query = db.from('leave_requests')
+        .select('id, type, start_date, end_date, status, total_days, is_half_day, ' +
+                'core_personnel!personnel_id(prefix, first_name, last_name)')
+        .eq('personnel_id', personnelId)
+        .neq('status', 'ไม่อนุมัติ')              // ใบลาที่ถูกปฏิเสธไม่นับ
+        .lte('start_date', e2)                     // overlap: start <= newEnd
+        .gte('end_date', s2);                      //          end   >= newStart
+
+    if (excludeId) query = query.neq('id', excludeId);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const sameType = (t) => (t || '').trim() === (leaveType || '').trim();
+    const rows = (data || []).filter(l =>
+        String(l.start_date).slice(0, 10) <= e2 && String(l.end_date).slice(0, 10) >= s2
+    );
+
+    // ครึ่งวัน: อนุญาตให้ลา "ครึ่งเช้า + ครึ่งบ่าย" ในวันเดียวกันได้ (รวมไม่เกิน 2 ใบ)
+    // (ตาราง leave_requests ไม่มีคอลัมน์ระบุช่วงเช้า/บ่าย จึงตรวจได้เท่านี้)
+    const isHalfPair = (l) =>
+        !!opts.isHalfDay && !!l.is_half_day && s2 === e2 &&
+        String(l.start_date).slice(0, 10) === s2 && String(l.end_date).slice(0, 10) === s2;
+
+    const halfPairs = rows.filter(isHalfPair);
+    const conflicts = rows.filter(l => !isHalfPair(l) || halfPairs.length >= 2);
+
+    if (conflicts.length === 0) return { exists: false };
+
+    // ใส่ธง sameType ไว้ให้ UI แยกข้อความ "ประเภทเดียวกัน" / "ต่างประเภทแต่วันทับกัน"
+    const allConflicts = conflicts.map(l => ({ ...l, sameType: sameType(l.type) }));
+    return { exists: true, existingLeave: allConflicts[0], allConflicts };
 };
 
 // ==========================================

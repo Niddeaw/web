@@ -1109,11 +1109,86 @@ $('#editLeaveForm').on('submit', async function (e) {
     const id = $('#edit_leave_id').val();
     const days = parseFloat($('#edit_calc_days').text());
     const type = $('#edit_leave_type').val();
+    
     if (isNaN(days) || days <= 0) {
         Swal.fire('ข้อมูลไม่ถูกต้อง', 'จำนวนวันลาต้องมากกว่า 0', 'warning');
         return;
     }
 
+    const leaveRecord = allLeavesData.find(l => l.id === id);
+    if (!leaveRecord) {
+        Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลใบลา', 'error');
+        return;
+    }
+    const personnelId = leaveRecord.personnel_id;
+    const startDate = $('#edit_start_date').val();
+    const endDate = $('#edit_end_date').val();
+
+    // ✅ 1) ตรวจสอบการลาซ้ำ (ทำก่อนอัปโหลดไฟล์เพื่อประหยัด Bandwidth)
+    let duplicate;
+    try {
+        duplicate = await window.checkDuplicateLeave(
+            personnelId,
+            type,
+            startDate,
+            endDate,
+            id, // ยกเว้น id ตัวเอง
+            { isHalfDay: $('#edit_is_half_day').is(':checked') }
+        );
+    } catch (err) {
+        console.error('checkDuplicateLeave error:', err);
+        Swal.fire('ตรวจสอบการลาซ้ำไม่สำเร็จ', 'กรุณาลองใหม่อีกครั้ง', 'error');
+        return; // ❌ ตรวจไม่สำเร็จ = ไม่บันทึก
+    }
+
+    if (duplicate?.exists) {
+        const ex = duplicate.existingLeave || {};
+        const exName = ex.core_personnel
+            ? `${ex.core_personnel.prefix || ''}${ex.core_personnel.first_name || ''} ${ex.core_personnel.last_name || ''}`.trim()
+            : 'บุคลากร';
+
+        const fmt = (iso) => {
+            if (!iso) return '-';
+            const p = String(iso).split('-');
+            if (p.length !== 3) return iso;
+            return `${p[2]}/${p[1]}/${parseInt(p[0], 10) + 543}`;
+        };
+
+        const allConflicts = Array.isArray(duplicate.allConflicts) && duplicate.allConflicts.length > 1
+            ? duplicate.allConflicts
+            : [ex];
+
+        const conflictListHtml = allConflicts.map((c, i) => `
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-1.5">
+                <p class="text-xs text-slate-500">รายการที่ ${i + 1}</p>
+                <p class="text-sm font-bold text-slate-700">${c.type || '-'}${c.sameType ? ' <span class="text-[10px] text-rose-600">(ประเภทเดียวกัน)</span>' : ''}</p>
+                <p class="text-sm">📅 ${fmt(c.start_date)} - ${fmt(c.end_date)}</p>
+                <p class="text-xs">📌 สถานะ: <b>${c.status || '-'}</b>${c.is_half_day ? ' • ⏰ ครึ่งวัน' : ''}</p>
+            </div>
+        `).join('');
+
+        await Swal.fire({
+            icon: 'warning',
+            title: 'ไม่สามารถบันทึกได้: พบการลาซ้ำ',
+            html: `
+                <div class="text-left text-sm">
+                    <p class="mb-2">
+                        บุคลากร <b>${exName}</b> มีใบลาที่มีช่วงวันที่ทับซ้อนอยู่แล้ว
+                        (ไม่ว่าจะเป็นประเภทใด ไม่สามารถลาซ้อนวันกันได้):
+                    </p>
+                    ${conflictListHtml}
+                    <p class="mt-3 text-xs text-slate-500">
+                        กรุณาตรวจสอบ/แก้ไขใบลาเดิม หรือเลือกช่วงวันที่อื่น
+                    </p>
+                </div>
+            `,
+            confirmButtonText: 'รับทราบ',
+            width: 520
+        });
+        return; // ❌ หยุดบันทึก
+    }
+
+    // ✅ 2) อัปโหลดไฟล์หลักฐาน (ถ้ามี)
     let attachmentFileId = null;
     const fileInput = document.getElementById('edit_evidence_file');
     const existingDiv = document.getElementById('edit_existing_evidence');
@@ -1140,13 +1215,14 @@ $('#editLeaveForm').on('submit', async function (e) {
         }
     }
 
+    // ✅ 3) บันทึกข้อมูลลงฐานข้อมูล
     const submittedDateIso = $('#edit_submitted_date').val() || null;
     const isHalfDay = $('#edit_is_half_day').is(':checked');
 
     const updateData = {
-        type: $('#edit_leave_type').val(),
-        start_date: $('#edit_start_date').val(),
-        end_date: $('#edit_end_date').val(),
+        type: type,
+        start_date: startDate,
+        end_date: endDate,
         total_days: days,
         reason: $('#edit_reason').val(),
         contact_address: $('#edit_contact_address').val(),
@@ -1157,50 +1233,30 @@ $('#editLeaveForm').on('submit', async function (e) {
         pdf_url: null
     };
 
-    const leaveRecord = allLeavesData.find(l => l.id === id);
-    if (!leaveRecord) {
-        Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลใบลา', 'error');
-        return;
-    }
-    const personnelId = leaveRecord.personnel_id;
-
-    const duplicate = await window.checkDuplicateLeave(
-        personnelId,
-        $('#edit_leave_type').val(),
-        $('#edit_start_date').val(),
-        $('#edit_end_date').val(),
-        id
-    );
-
-    if (duplicate.exists) {
-        const existingName = duplicate.existingLeave?.core_personnel
-            ? `${duplicate.existingLeave.core_personnel.prefix || ''}${duplicate.existingLeave.core_personnel.first_name} ${duplicate.existingLeave.core_personnel.last_name}`
-            : 'บุคลากร';
-        await Swal.fire({
-            icon: 'warning',
-            title: 'มีใบลาซ้ำ',
-            html: `
-                <div class="text-left">
-                    <p>พบข้อมูลการลานี้แล้วสำหรับ <b>${existingName}</b></p>
-                    <p class="text-sm text-slate-600">ประเภท: ${$('#edit_leave_type').val()}</p>
-                    <p class="text-sm text-slate-600">วันที่: ${window.formatDateThai($('#edit_start_date').val())} - ${window.formatDateThai($('#edit_end_date').val())}</p>
-                    <p class="text-sm text-slate-600">สถานะ: <span class="font-bold">${duplicate.existingLeave.status}</span></p>
-                </div>
-            `,
-            confirmButtonText: 'ตกลง'
-        });
-        return;
-    }
-
     Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-    const { error } = await db.from('leave_requests').update(updateData).eq('id', id);
-    if (error) {
-        Swal.fire('ข้อผิดพลาด', error.message, 'error');
-    } else {
+    
+    try {
+        const { error } = await db.from('leave_requests').update(updateData).eq('id', id);
+        if (error) throw error;
+
         await logUserAction(`แก้ไขใบลา ID: ${id}`, 'leave');
         closeEditModal();
         Swal.fire({ title: 'บันทึกสำเร็จ', text: 'แก้ไขข้อมูลเรียบร้อย', icon: 'success', timer: 1500, showConfirmButton: false });
         await loadDashboardStats();
+    } catch (err) {
+        // ✅ 4) ดักจับ Error จาก Database (Constraint no_overlap_leave)
+        const msg = String(err?.message || '');
+        if (msg.includes('uniq_leave') || msg.includes('no_overlap_leave') || err?.code === '23505' || err?.code === '23P01') {
+            Swal.fire({
+                icon: 'error',
+                title: 'พบการลาซ้ำ',
+                html: `<p class="text-sm">ฐานข้อมูลตรวจพบว่ามีใบลาที่ซ้ำหรือทับซ้อนอยู่แล้ว</p>
+                       <p class="text-xs text-slate-500 mt-2">กรุณารีเฟรชรายการและตรวจสอบอีกครั้ง</p>`
+            });
+            try { await loadDashboardStats(); } catch (_) { }
+        } else {
+            Swal.fire('ข้อผิดพลาด', err.message, 'error');
+        }
     }
 });
 
@@ -2089,23 +2145,41 @@ async function importLeaveExcel(event) {
             const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false });
             if (rows.length === 0) throw new Error('ไม่พบข้อมูลในไฟล์ Excel');
             let success = 0;
+            const skipped = [];
             for (let row of rows) {
                 const fullName = row['ชื่อ-สกุล'] ? row['ชื่อ-สกุล'].trim() : '';
                 const person = allPersonnelData.find(p => `${p.prefix || ''}${p.first_name} ${p.last_name}` === fullName || `${p.first_name} ${p.last_name}` === fullName);
                 if (person) {
-                    const parseDate = (d) => { if (!d) return null; const p = d.split('/'); return `${parseInt(p[2]) - 543}-${p[1]}-${p[0]}`; };
-                    await db.from('leave_requests').insert({
-                        personnel_id: person.id, type: row['ประเภทการลา'] || 'ลาป่วย', start_date: parseDate(row['เริ่มวันที่']), end_date: parseDate(row['ถึงวันที่']),
+                    const parseDate = (d) => { if (!d) return null; const p = d.split('/'); return `${parseInt(p[2]) - 543}-${String(p[1]).padStart(2, '0')}-${String(p[0]).padStart(2, '0')}`; };
+                    const impType  = row['ประเภทการลา'] || 'ลาป่วย';
+                    const impStart = parseDate(row['เริ่มวันที่']);
+                    const impEnd   = parseDate(row['ถึงวันที่']);
+                    const impStatus = row['สถานะ'] || 'อนุมัติ';
+                    if (!impStart || !impEnd || impEnd < impStart) { skipped.push(`${fullName}: วันที่ไม่ถูกต้อง`); continue; }
+                    // ✅ ตรวจซ้ำก่อนนำเข้า (รวมกับแถวที่เพิ่งนำเข้าไปในไฟล์เดียวกัน เพราะ insert ทีละแถว)
+                    if (impStatus !== 'ไม่อนุมัติ') {
+                        const dup = await window.checkDuplicateLeave(person.id, impType, impStart, impEnd, null);
+                        if (dup.exists) { skipped.push(`${fullName} ${impStart} - ${impEnd}: ซ้ำกับ ${dup.existingLeave.type}`); continue; }
+                    }
+                    const { error: impErr } = await db.from('leave_requests').insert({
+                        personnel_id: person.id, type: impType, start_date: impStart, end_date: impEnd,
                         total_days: parseInt(row['จำนวน (วัน)']) || 0, reason: row['สาเหตุ'] || 'นำเข้าจากระบบเก่า',
                         fiscal_year: row['ปีงบประมาณ'] || systemSettings.fiscal_year, eval_round: row['รอบประเมิน'] || systemSettings.eval_round,
-                        status: row['สถานะ'] || 'อนุมัติ', reject_comment: row['หมายเหตุ (ถ้าไม่อนุมัติ)'] || null
+                        status: impStatus, reject_comment: row['หมายเหตุ (ถ้าไม่อนุมัติ)'] || null
                     });
+                    if (impErr) { skipped.push(`${fullName} ${impStart} - ${impEnd}: ${impErr.message}`); continue; }
                     success++;
                 }
             }
             await logUserAction(`นำเข้า Excel: ${success} รายการ`, 'leave');
             await loadDashboardStats();
-            Swal.fire('สำเร็จ', `นำเข้าข้อมูลการลา ${success} รายการเรียบร้อยแล้ว`, 'success');
+            Swal.fire({
+                icon: skipped.length ? 'warning' : 'success',
+                title: 'นำเข้าเสร็จสิ้น',
+                html: `นำเข้าสำเร็จ <b>${success}</b> รายการ` + (skipped.length
+                    ? `<br>ข้าม <b>${skipped.length}</b> รายการ (ซ้ำ/ไม่ถูกต้อง)<div class="text-left text-xs mt-2 max-h-40 overflow-y-auto">${skipped.map(s => '• ' + s).join('<br>')}</div>`
+                    : '')
+            });
         } catch (err) { Swal.fire('ผิดพลาด', err.message, 'error'); }
     };
     reader.readAsArrayBuffer(file);
@@ -2398,75 +2472,166 @@ function closeAdminLeaveModal() {
     $('#adminLeaveModal').addClass('hidden').removeClass('flex');
 }
 
+// ============================================================
+// ✅ saveLeaveForAdmin — ฉบับเต็ม (เพิ่มการป้องกันการบันทึกซ้ำ)
+// ============================================================
 window.saveLeaveForAdmin = async function (e) {
     e.preventDefault();
+
+    // ---------- 0) ตรวจสิทธิ์ ----------
     if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
-    const personnelId = $('#admin_personnel_id').val();
-    if (!personnelId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกบุคลากร', 'warning');
-    const type = $('#admin_leave_type').val();
-    const reason = $('#admin_reason').val().trim();
-    const startDate = $('#admin_start_date_iso').val();
-    const endDate = $('#admin_end_date_iso').val();
-    const totalDays = parseFloat($('#admin_calc_days').text());
+    // ---------- 1) เก็บค่าจากฟอร์ม ----------
+    const personnelId    = $('#admin_personnel_id').val();
+    const type           = $('#admin_leave_type').val();
+    const reason         = $('#admin_reason').val().trim();
+    const startDate      = $('#admin_start_date_iso').val();   // Y-m-d
+    const endDate        = $('#admin_end_date_iso').val();     // Y-m-d
+    const totalDays      = parseFloat($('#admin_calc_days').text());
     const contactAddress = $('#admin_contact_address').val().trim();
-    const phoneNumber = $('#admin_phone_number').val().trim();
-    const isHalfDay = $('#admin_is_half_day').is(':checked');
+    const phoneNumber    = $('#admin_phone_number').val().trim();
+    const isHalfDay      = $('#admin_is_half_day').is(':checked');
     const submittedDateIso = $('#admin_submitted_date_iso').val() || null;
 
-    if (!type) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกประเภทการลา', 'warning');
-    if (totalDays <= 0) return Swal.fire('ข้อมูลไม่ถูกต้อง', 'จำนวนวันลาต้องมากกว่า 0 วัน', 'warning');
+    // ---------- 2) ตรวจข้อมูลเบื้องต้น ----------
+    if (!personnelId) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกบุคลากร', 'warning');
+    }
+    if (!type) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกประเภทการลา', 'warning');
+    }
+    if (!startDate || !endDate) {
+        return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุวันเริ่มต้นและวันสิ้นสุดการลา', 'warning');
+    }
+    if (new Date(endDate) < new Date(startDate)) {
+        return Swal.fire('วันที่ไม่ถูกต้อง', 'วันสิ้นสุดต้องไม่มาก่อนวันเริ่มลา', 'warning');
+    }
+    if (isNaN(totalDays) || totalDays <= 0) {
+        return Swal.fire('ข้อมูลไม่ถูกต้อง', 'จำนวนวันลาต้องมากกว่า 0 วัน', 'warning');
+    }
 
+    // ---------- 3) ✅ ตรวจการลาซ้ำ (ทำก่อนอัปโหลดไฟล์) ----------
+    let duplicate;
+    try {
+        duplicate = await window.checkDuplicateLeave(
+            personnelId,
+            type,
+            startDate,
+            endDate,
+            null,  // insert ใหม่ → ไม่มี excludeId
+            { isHalfDay }
+        );
+    } catch (err) {
+        console.error('checkDuplicateLeave error:', err);
+        return Swal.fire('ตรวจสอบการลาซ้ำไม่สำเร็จ', 'กรุณาลองใหม่อีกครั้ง', 'error'); // ❌ ไม่บันทึก
+    }
+
+    // กรณีวันที่ผิดจาก helper
+    if (duplicate?.invalid) {
+        return Swal.fire('วันที่ไม่ถูกต้อง', 'วันสิ้นสุดต้องไม่มาก่อนวันเริ่มลา', 'warning');
+    }
+
+    // ---------- 4) ✅ พบการลาซ้ำ → บล็อกทันที ----------
+    if (duplicate?.exists) {
+        const ex = duplicate.existingLeave || {};
+        const exName = ex.core_personnel
+            ? `${ex.core_personnel.prefix || ''}${ex.core_personnel.first_name || ''} ${ex.core_personnel.last_name || ''}`.trim()
+            : 'บุคลากร';
+
+        const fmt = (iso) => {
+            if (!iso) return '-';
+            const p = String(iso).split('-');
+            if (p.length !== 3) return iso;
+            return `${p[2]}/${p[1]}/${parseInt(p[0], 10) + 543}`;
+        };
+
+        const allConflicts = Array.isArray(duplicate.allConflicts) && duplicate.allConflicts.length > 1
+            ? duplicate.allConflicts
+            : [ex];
+
+        const conflictListHtml = allConflicts.map((c, i) => `
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-1.5">
+                <p class="text-xs text-slate-500">รายการที่ ${i + 1}</p>
+                <p class="text-sm font-bold text-slate-700">${c.type || '-'}${c.sameType ? ' <span class="text-[10px] text-rose-600">(ประเภทเดียวกัน)</span>' : ''}</p>
+                <p class="text-sm">📅 ${fmt(c.start_date)} - ${fmt(c.end_date)}</p>
+                <p class="text-xs">📌 สถานะ: <b>${c.status || '-'}</b>${c.is_half_day ? ' • ⏰ ครึ่งวัน' : ''}</p>
+            </div>
+        `).join('');
+
+        await Swal.fire({
+            icon: 'warning',
+            title: 'ไม่สามารถบันทึกได้: พบการลาซ้ำ',
+            html: `
+                <div class="text-left text-sm">
+                    <p class="mb-2">
+                        บุคลากร <b>${exName}</b> มีใบลาที่มีช่วงวันที่ทับซ้อนอยู่แล้ว
+                        (ไม่ว่าจะเป็นประเภทใด ไม่สามารถลาซ้อนวันกันได้):
+                    </p>
+                    ${conflictListHtml}
+                    <p class="mt-3 text-xs text-slate-500">
+                        กรุณาตรวจสอบ/แก้ไขใบลาเดิม หรือเลือกช่วงวันที่อื่น
+                    </p>
+                </div>
+            `,
+            confirmButtonText: 'รับทราบ',
+            width: 520
+        });
+        return;   // ❌ หยุด — ไม่บันทึก
+    }
+
+    // ---------- 5) อัปโหลดหลักฐาน (ถ้าจำเป็น) ----------
     let attachmentFileId = null;
     const fileInput = document.getElementById('admin_evidence_file');
     if (totalDays >= 3 && type === 'ลาป่วย') {
-        if (fileInput.files && fileInput.files.length > 0) {
+        if (fileInput && fileInput.files && fileInput.files.length > 0) {
             const file = fileInput.files[0];
             if (file.size > 5 * 1024 * 1024) {
-                Swal.fire('ไฟล์ใหญ่เกินไป', 'กรุณาอัปโหลดไฟล์ขนาดไม่เกิน 5MB', 'warning');
-                return;
+                return Swal.fire('ไฟล์ใหญ่เกินไป', 'กรุณาอัปโหลดไฟล์ขนาดไม่เกิน 5MB', 'warning');
             }
             try {
-                attachmentFileId = await window.uploadEvidenceFile(file, systemSettings.evidence_folder_id, systemSettings.gas_url);
+                attachmentFileId = await window.uploadEvidenceFile(
+                    file,
+                    systemSettings.evidence_folder_id,
+                    systemSettings.gas_url
+                );
             } catch (err) {
-                Swal.fire('อัปโหลดไม่สำเร็จ', err.message, 'error');
-                return;
+                return Swal.fire('อัปโหลดไม่สำเร็จ', err.message, 'error');
             }
         } else {
-            Swal.fire('แจ้งเตือน', 'กรุณาอัปโหลดไฟล์หลักฐาน (จำเป็นสำหรับการลา 3 วันขึ้นไป)', 'warning');
-            return;
+            return Swal.fire(
+                'แจ้งเตือน',
+                'กรุณาอัปโหลดไฟล์หลักฐาน (จำเป็นสำหรับการลา 3 วันขึ้นไป)',
+                'warning'
+            );
         }
     }
 
-    const duplicate = await window.checkDuplicateLeave(
-        personnelId,
-        type,
-        startDate,
-        endDate,
-        null
-    );
+    // ---------- 6) ยืนยันก่อนบันทึกจริง ----------
+    const confirmSave = await Swal.fire({
+        icon: 'question',
+        title: 'ยืนยันการบันทึกใบลา',
+        html: `
+            <div class="text-left text-sm">
+                <p><b>บุคลากร:</b> ${$('#admin_personnel_id option:selected').text() || '-'}</p>
+                <p><b>ประเภท:</b> ${type}</p>
+                <p><b>ช่วงวันที่:</b> ${window.formatDateThai ? window.formatDateThai(startDate) : startDate}
+                   - ${window.formatDateThai ? window.formatDateThai(endDate) : endDate}</p>
+                <p><b>จำนวนวัน:</b> ${totalDays} วัน${isHalfDay ? ' (ครึ่งวัน)' : ''}</p>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'บันทึก',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (!confirmSave.isConfirmed) return;
 
-    if (duplicate.exists) {
-        const existingName = duplicate.existingLeave?.core_personnel
-            ? `${duplicate.existingLeave.core_personnel.prefix || ''}${duplicate.existingLeave.core_personnel.first_name} ${duplicate.existingLeave.core_personnel.last_name}`
-            : 'บุคลากร';
-        await Swal.fire({
-            icon: 'warning',
-            title: 'มีใบลาซ้ำ',
-            html: `
-                <div class="text-left">
-                    <p>พบข้อมูลการลานี้แล้วสำหรับ <b>${existingName}</b></p>
-                    <p class="text-sm text-slate-600">ประเภท: ${type}</p>
-                    <p class="text-sm text-slate-600">วันที่: ${window.formatDateThai(startDate)} - ${window.formatDateThai(endDate)}</p>
-                    <p class="text-sm text-slate-600">สถานะ: <span class="font-bold">${duplicate.existingLeave.status}</span></p>
-                </div>
-            `,
-            confirmButtonText: 'ตกลง'
-        });
-        return;
-    }
+    // ---------- 7) บันทึก ----------
+    Swal.fire({
+        title: 'กำลังบันทึก...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
 
-    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     const payload = {
         personnel_id: personnelId,
         type,
@@ -2485,14 +2650,39 @@ window.saveLeaveForAdmin = async function (e) {
         is_half_day: isHalfDay,
         submitted_date: submittedDateIso
     };
+
     try {
         const { error } = await db.from('leave_requests').insert([payload]);
         if (error) throw error;
+
         await logUserAction(`บันทึกใบลาให้ ${personnelId} (${type})`, 'leave');
         closeAdminLeaveModal();
-        Swal.fire({ icon: 'success', title: 'บันทึกใบลาเรียบร้อย', text: 'ใบลาอยู่ในสถานะรออนุมัติ', timer: 1500, showConfirmButton: false });
+        Swal.fire({
+            icon: 'success',
+            title: 'บันทึกใบลาเรียบร้อย',
+            text: 'ใบลาอยู่ในสถานะรออนุมัติ',
+            timer: 1500,
+            showConfirmButton: false
+        });
         await loadDashboardStats();
-    } catch (err) { Swal.fire('ผิดพลาด', err.message, 'error'); }
+    } catch (err) {
+        // ✅ จับ error จาก unique constraint (ถ้ามีตั้ง index ไว้)
+        const msg = String(err?.message || '');
+        if (msg.includes('uniq_leave') || msg.includes('no_overlap_leave') ||
+            err?.code === '23505' || err?.code === '23P01') {
+            Swal.fire({
+                icon: 'error',
+                title: 'พบการลาซ้ำ',
+                html: `
+                    <p class="text-sm">ฐานข้อมูลตรวจพบว่ามีใบลาที่ซ้ำหรือทับซ้อนอยู่แล้ว</p>
+                    <p class="text-xs text-slate-500 mt-2">กรุณารีเฟรชรายการและตรวจสอบอีกครั้ง</p>
+                `
+            });
+            await loadDashboardStats();
+        } else {
+            Swal.fire('ผิดพลาด', err.message, 'error');
+        }
+    }
 };
 
 // ==========================================
@@ -2971,7 +3161,17 @@ window.closeAttendanceModal = closeAttendanceModal;
 window.deleteAttendance = deleteAttendance;
 window.openAdminLeaveModal = openAdminLeaveModal;
 window.closeAdminLeaveModal = closeAdminLeaveModal;
-window.saveLeaveForAdmin = saveLeaveForAdmin;
+// ✅ กันกดส่งซ้ำ
+(function () {
+    const _orig = saveLeaveForAdmin;
+    let _saving = false;
+    window.saveLeaveForAdmin = async function (e) {
+        if (e && e.preventDefault) e.preventDefault();
+        if (_saving) return;
+        _saving = true;
+        try { return await _orig(e); } finally { _saving = false; }
+    };
+})();
 window.adminUpdateLeaveGuide = adminUpdateLeaveGuide;
 window.adminCalculateDays = adminCalculateDays;
 window.addModuleAdmin = addModuleAdmin;
