@@ -185,10 +185,13 @@
                         </div>
                     </section>
 
-                    <section class="d-layout">
-                        <div class="d-card wide">
+                    <!-- ปรับ Grid หลักเป็น 3 คอลัมน์ (จอใหญ่) เพื่อให้สัดส่วนพอดี -->
+                    <section class="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-4">
+
+                        <!-- 1. ตารางปฏิทินกิจกรรม (กินพื้นที่ 2 คอลัมน์) -->
+                        <div class="d-card xl:col-span-2 flex flex-col h-full">
                             <div class="d-card-head">
-                                <div class="d-card-title">📅 ปฏิทินกิจกรรม</div>
+                                <div class="d-card-title">📅 ตารางกิจกรรม</div>
                                 <div class="flex gap-2 items-center flex-wrap">
                                     <select id="monthSelect" class="d-select">
                                         <option value="0">มกราคม</option>
@@ -210,53 +213,138 @@
                                     </button>
                                 </div>
                             </div>
-                            <div class="d-calendar-box border border-gray-200 rounded-lg">
+                            <div class="d-calendar-box border border-gray-200 rounded-lg flex-1 overflow-y-auto"
+                                style="max-height: 400px;">
                                 <table class="w-full text-left text-sm border-collapse relative">
                                     <thead class="bg-gray-100 text-gray-700 border-b sticky top-0 z-10">
                                         <tr>
-                                            <th class="py-3 px-4 font-semibold">วัน/เดือน/ปี</th>
-                                            <th class="py-3 px-4 font-semibold whitespace-nowrap"
-                                                style="min-width:120px;">กลุ่ม</th>
+                                            <th class="py-3 px-4 font-semibold w-32">วัน/เดือน/ปี</th>
+                                            <th class="py-3 px-4 font-semibold w-24">กลุ่ม</th>
                                             <th class="py-3 px-4 font-semibold">รายการ</th>
                                             <th class="py-3 px-4 font-semibold">รายละเอียด</th>
                                         </tr>
                                     </thead>
                                     <tbody id="calendarEventsTableBody">
-                                        <tr>
-                                            <td colspan="4" class="text-center py-8 text-gray-400">กำลังโหลดกิจกรรม...
+                                        <!-- ข้อมูลตัวอย่าง -->
+                                        <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                            <td class="py-3 px-4 text-gray-600 whitespace-nowrap">18 พ.ย. 2569</td>
+                                            <td class="py-3 px-4"><span
+                                                    class="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs">วิชาการ</span>
+                                            </td>
+                                            <td class="py-3 px-4 font-medium">ค่ายปฏิบัติการ ม.เกษตรศาสตร์ กำแพงแสน</td>
+                                            <td class="py-3 px-4 text-gray-500">มหาวิทยาลัยเกษตรศาสตร์ กำแพงแสน จ.นครปฐม
                                             </td>
                                         </tr>
+                                        <!-- เพิ่มแถวอื่นๆ ตามจริง -->
                                     </tbody>
                                 </table>
                             </div>
                         </div>
 
-                        <div class="d-card d-leave" style="border-left-color:#f43f5e">
-                            <div class="d-card-head">
-                                <div class="d-card-title"><i class="fas fa-calendar-day text-rose-500 mr-1"></i> 📋
-                                    การลาวันนี้</div>
-                                <span class="d-sub" id="sick-today-date"></span>
+                        <!-- 2. ปฏิทินใหม่ (Mini Calendar) + เพิ่ม Legend ด้านล่าง -->
+                        <div class="d-card flex flex-col h-full bg-white" id="miniCalendarCard">
+                            <div class="d-card-head pb-2">
+                                <div class="d-card-title">
+                                    <i class="fa-regular fa-calendar text-blue-500 mr-2"></i> ภาพรวมกิจกรรม
+                                </div>
                             </div>
-                            <div id="sick-leave-today" class="min-h-[40px]">
+                            <div class="p-5 pt-0 flex-1 flex flex-col justify-between">
+                                <div>
+                                    <!-- Header ปุ่มเปลี่ยนเดือน -->
+                                    <div
+                                        class="text-center font-bold text-[#1e3a8a] mb-5 flex justify-between items-center px-2">
+                                        <button onclick="changeMiniCalendarMonth(-1)"
+                                            class="w-8 h-8 rounded-full hover:bg-gray-100 text-gray-500 hover:text-blue-600 transition"><i
+                                                class="fa-solid fa-chevron-left text-sm"></i></button>
+                                        <span id="miniCalendarTitle" class="text-[15px]">พฤศจิกายน 2569</span>
+                                        <button onclick="changeMiniCalendarMonth(1)"
+                                            class="w-8 h-8 rounded-full hover:bg-gray-100 text-gray-500 hover:text-blue-600 transition"><i
+                                                class="fa-solid fa-chevron-right text-sm"></i></button>
+                                    </div>
+
+                                    <!-- หัวตารางวัน -->
+                                    <div
+                                        class="grid grid-cols-7 gap-1 text-center text-[13px] mb-3 font-semibold text-gray-500">
+                                        <div class="text-red-500">อา</div>
+                                        <div>จ</div>
+                                        <div>อ</div>
+                                        <div>พ</div>
+                                        <div>พฤ</div>
+                                        <div>ศ</div>
+                                        <div>ส</div>
+                                    </div>
+
+                                    <!-- ช่องวัน (ปรับให้ใหญ่ขึ้น ใช้ Gap น้อยลง) -->
+                                    <div class="grid grid-cols-7 gap-1 text-center text-sm" id="miniCalendarGrid">
+                                        <!-- JS will populate this -->
+                                    </div>
+                                </div>
+
+                                <!-- เพิ่ม Legend อธิบายสี ด้านล่างเพื่อลดความโล่ง -->
+                                <div class="mt-6 pt-4 border-t border-gray-100 flex flex-col gap-2">
+                                    <div class="text-xs font-semibold text-gray-500 mb-1">สัญลักษณ์:</div>
+                                    <div class="flex items-center gap-2 text-xs text-gray-600">
+                                        <span class="w-3.5 h-3.5 rounded-full bg-[#2563eb]"></span> วันนี้
+                                    </div>
+                                    <div class="flex items-center gap-2 text-xs text-gray-600">
+                                        <span class="w-3.5 h-3.5 rounded-full bg-blue-100"></span> วันที่มีกิจกรรม
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </section>
+
+                    <!-- 3. บล็อคการจองห้องประชุม + การลา (แบ่ง 3 คอลัมน์) -->
+                    <section class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4 mb-4">
+
+                        <!-- บล็อคที่ 1: รายการใช้ห้องประชุมสัปดาห์นี้ -->
+                        <div class="d-card flex flex-col h-full" style="border-left-color:#3b82f6; margin-bottom: 0;">
+                            <div class="d-card-head">
+                                <div class="d-card-title">
+                                    <i class="fas fa-door-open text-blue-500 mr-1"></i> 📋 ใช้ห้องประชุมสัปดาห์นี้
+                                </div>
+                                <!-- เปลี่ยน ID เป็น meeting-week-range -->
+                                <span class="d-sub" id="meeting-week-range"></span>
+                            </div>
+                            <div id="meeting-room-week" class="flex-1 overflow-y-auto pr-2" style="max-height: 220px;">
                                 <p class="text-gray-400 text-sm flex items-center gap-2">
                                     <i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...
                                 </p>
                             </div>
                         </div>
 
-                        <div class="d-card d-leave" style="border-left-color:#f97316">
+                        <!-- บล็อคที่ 2: การลาวันนี้ -->
+                        <div class="d-card d-leave flex flex-col h-full"
+                            style="border-left-color:#f43f5e; margin-bottom: 0;">
+                            <div class="d-card-head">
+                                <div class="d-card-title"><i class="fas fa-calendar-day text-rose-500 mr-1"></i> 📋
+                                    การลาวันนี้</div>
+                                <span class="d-sub" id="sick-today-date"></span>
+                            </div>
+                            <div id="sick-leave-today" class="flex-1 overflow-y-auto pr-2" style="max-height: 220px;">
+                                <p class="text-gray-400 text-sm flex items-center gap-2">
+                                    <i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- บล็อคที่ 3: การลาสัปดาห์นี้ -->
+                        <div class="d-card d-leave flex flex-col h-full"
+                            style="border-left-color:#f97316; margin-bottom: 0;">
                             <div class="d-card-head">
                                 <div class="d-card-title"><i class="fas fa-calendar-week text-orange-500 mr-1"></i> 📋
                                     การลาสัปดาห์นี้</div>
                                 <span class="d-sub" id="sick-week-range"></span>
                             </div>
-                            <div id="sick-leave-week" class="min-h-[40px]">
+                            <div id="sick-leave-week" class="flex-1 overflow-y-auto pr-2" style="max-height: 220px;">
                                 <p class="text-gray-400 text-sm flex items-center gap-2">
                                     <i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...
                                 </p>
                             </div>
                         </div>
                     </section>
+
                 </div>
 
                 <section class="d-card hidden" id="appModuleSection" style="margin-bottom:12px">
@@ -635,6 +723,7 @@
                 updateUI();
                 checkCalendarAdminAccess().catch(e => console.warn(e));
                 loadSickLeaveWidget().catch(e => console.warn(e));
+                loadMeetingRoomWidget().catch(e => console.warn(e));
                 updateTotalAppStat();
                 loadSchoolSettings().then(() => {
                     // หลังได้ปี/เทอม → ค่อยโหลด stats + charts
@@ -1248,10 +1337,291 @@
             modal.classList.remove('flex');
         }
 
+                // ============================================================
+        // 🏢 Meeting Room Widget (เวอร์ชันแก้ไข Timezone + ไม่พึ่ง Plugin)
+        // ============================================================
+        async function loadMeetingRoomWidget() {
+            const container = document.getElementById('meeting-room-week');
+            const dateLabel = document.getElementById('meeting-week-range');
+            if (!container) return;
+
+            const today = dayjs();
+            const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+            const THAI_DAYS = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+
+            // ✅ คำนวณหาช่วงวันอาทิตย์ - เสาร์ (ให้ตรงกับ FullCalendar ในรูป)
+            const currentDay = today.day(); // 0 = อาทิตย์, 1 = จันทร์
+            const startOfWeek = today.subtract(currentDay, 'day').startOf('day'); // ย้อนกลับไปวันอาทิตย์
+            const endOfWeek = startOfWeek.add(6, 'day').endOf('day');             // ไปข้างหน้าถึงวันเสาร์
+
+            // แสดงช่วงวันที่ด้านบนการ์ด
+            if (dateLabel) {
+                if (startOfWeek.month() === endOfWeek.month()) {
+                    dateLabel.textContent = `${startOfWeek.date()} - ${endOfWeek.date()} ${THAI_MONTHS[startOfWeek.month()]} ${startOfWeek.year() + 543}`;
+                } else {
+                    dateLabel.textContent = `${startOfWeek.date()} ${THAI_MONTHS[startOfWeek.month()]} - ${endOfWeek.date()} ${THAI_MONTHS[endOfWeek.month()]} ${startOfWeek.year() + 543}`;
+                }
+            }
+
+            try {
+                // ✅ ใช้ Format 'YYYY-MM-DD HH:mm:ss' แบบ Local Time ป้องกัน Timezone เพี้ยน
+                const startStr = startOfWeek.format('YYYY-MM-DD HH:mm:ss');
+                const endStr = endOfWeek.format('YYYY-MM-DD HH:mm:ss');
+                
+                console.log(`🔍 [Meeting Widget] กำลังค้นหาช่วง: ${startStr} ถึง ${endStr}`);
+
+                const { data, error } = await db
+                    .from('mr_reservations')
+                    .select(`
+                        id, title, start_time, end_time, responsible_person, department, status,
+                        mr_rooms ( room_name )
+                    `)
+                    // ตรวจสอบว่ามีการทับซ้อนของเวลา (คาบเกี่ยวกัน)
+                    .gte('end_time', startStr)
+                    .lte('start_time', endStr)
+                    .in('status', ['pending', 'approved'])
+                    .order('start_time', { ascending: true });
+
+                if (error) {
+                    console.error('❌ [Meeting Widget] Database Error:', error);
+                    throw error;
+                }
+
+                console.log(`📊 [Meeting Widget] พบข้อมูล ${data?.length || 0} รายการ`, data);
+
+                if (!data || data.length === 0) {
+                    container.innerHTML = `
+                        <div class="flex flex-col items-center justify-center h-full text-gray-400 py-6">
+                            <i class="fas fa-door-closed text-3xl mb-2 opacity-50"></i>
+                            <p class="text-sm">ไม่มีรายการจองห้องประชุมในสัปดาห์นี้</p>
+                        </div>`;
+                    return;
+                }
+
+                let html = '<div class="space-y-3">';
+                data.forEach(item => {
+                    const d = dayjs(item.start_time);
+                    const startTime = d.format('HH:mm');
+                    const endTime = dayjs(item.end_time).format('HH:mm');
+                    
+                    const dayName = THAI_DAYS[d.day()];
+                    const dateStr = `${dayName} ${d.date()} ${THAI_MONTHS[d.month()]}`;
+                    
+                    const isToday = d.isSame(today, 'day');
+                    const dateBadgeClass = isToday 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-slate-100 text-slate-600 border border-slate-200';
+
+                    const isApproved = item.status === 'approved';
+                    const statusBadge = isApproved 
+                        ? `<span class="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">อนุมัติแล้ว</span>`
+                        : `<span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">รออนุมัติ</span>`;
+
+                    html += `
+                        <div class="p-3 bg-blue-50/40 border border-blue-100 rounded-xl flex gap-3 items-start hover:bg-blue-50 transition">
+                            <div class="w-10 h-10 rounded-lg ${isApproved ? 'bg-blue-500' : 'bg-amber-500'} text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex justify-between items-start mb-1">
+                                    <h4 class="text-sm font-bold text-gray-800 truncate pr-2" title="${item.title}">${item.title}</h4>
+                                    <span class="text-[10px] font-semibold bg-white text-blue-600 px-2 py-0.5 rounded border border-blue-200 whitespace-nowrap">${startTime} - ${endTime}</span>
+                                </div>
+                                <p class="text-xs text-gray-600 truncate"><i class="fas fa-door-open text-gray-400 mr-1"></i> ${item.mr_rooms?.room_name || 'ไม่ระบุห้อง'}</p>
+                                <div class="flex items-center justify-between mt-2">
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-[10px] font-bold px-2 py-0.5 rounded ${dateBadgeClass}">${dateStr}</span>
+                                        <span class="text-[10px] text-gray-500 truncate max-w-[80px]"><i class="fas fa-user-circle mr-0.5"></i>${item.responsible_person}</span>
+                                    </div>
+                                    ${statusBadge}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+
+            } catch (err) {
+                console.error('Meeting room load error:', err);
+                container.innerHTML = `<p class="text-rose-500 text-sm text-center py-4">ไม่สามารถโหลดข้อมูลได้</p>`;
+            }
+        }
+
         window.initIndexBirthdayNotification = initIndexBirthdayNotification;
         window.updateBirthdayNotification = updateBirthdayNotification;
         window.openBirthdayModal = openBirthdayModal;
         window.closeBirthdayModal = closeBirthdayModal;
+    </script>
+
+    <script>
+        // ============================================================
+        // 🗓️ Mini Calendar — ใช้ข้อมูลชุดเดียวกับตารางกิจกรรม
+        //    ตัวโหลดเดียวคือ loadEventsByMonth() (dashboard_widgets.js)
+        //    ซึ่งจะส่ง event 'dashboard:events-loading' / 'dashboard:events-loaded' มาให้ที่นี่
+        // ============================================================
+        let miniCalDate = dayjs().startOf('month');
+        let miniCalendarEvents = {};   // { 'YYYY-MM-DD': [ {title, category, description, start_date, end_date} ] }
+
+        const MC_THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+        const MC_THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+        function mcEscape(str) {
+            return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        function mcParseYMD(ymd) {
+            const [y, m, d] = String(ymd).slice(0, 10).split('-').map(Number);
+            return new Date(y, m - 1, d);
+        }
+        function mcFormatYMD(d) {
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+        function mcFormatThai(ymd) {
+            const d = mcParseYMD(ymd);
+            return `${d.getDate()} ${MC_THAI_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear() + 543}`;
+        }
+
+        // รายการกิจกรรม -> map รายวัน (กิจกรรมหลายวันจะกระจายทุกวันในช่วง เฉพาะวันที่อยู่ในเดือนที่แสดง)
+        function buildMiniCalendarMap(events, year, month) {
+            const map = {};
+            const monthStart = new Date(year, month, 1);
+            const monthEnd = new Date(year, month + 1, 0);
+
+            (events || []).forEach(ev => {
+                if (!ev.start_date) return;
+                const s = mcParseYMD(ev.start_date);
+                const e = ev.end_date ? mcParseYMD(ev.end_date) : s;
+                const from = s < monthStart ? monthStart : s;
+                const to = e > monthEnd ? monthEnd : e;
+                const info = {
+                    title: ev.title,
+                    category: (typeof DEPT_NAMES !== 'undefined' && DEPT_NAMES[ev.dept_key]) || ev.dept_key || '',
+                    description: ev.description || '',
+                    start_date: ev.start_date,
+                    end_date: ev.end_date || null
+                };
+                for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+                    const key = mcFormatYMD(d);
+                    (map[key] = map[key] || []).push(info);
+                }
+            });
+            return map;
+        }
+
+        function renderMiniCalendar() {
+            const grid = document.getElementById('miniCalendarGrid');
+            const title = document.getElementById('miniCalendarTitle');
+            if (!grid || !title) return;
+
+            const year = miniCalDate.year();
+            const month = miniCalDate.month();
+            title.textContent = `${MC_THAI_MONTHS[month]} ${year + 543}`;
+
+            const firstDay = miniCalDate.startOf('month').day();
+            const daysInMonth = miniCalDate.daysInMonth();
+            const todayKey = dayjs().format('YYYY-MM-DD');
+
+            let html = '';
+            for (let i = 0; i < firstDay; i++) {
+                html += `<div class="text-gray-300 py-1 flex items-center justify-center h-10"></div>`;
+            }
+
+            for (let i = 1; i <= daysInMonth; i++) {
+                const date = new Date(year, month, i);
+                const dateKey = mcFormatYMD(date);
+                const isToday = dateKey === todayKey;
+                const isSunday = date.getDay() === 0;
+                const count = (miniCalendarEvents[dateKey] || []).length;
+                const hasEvent = count > 0;
+
+                let classes = 'flex flex-col items-center justify-center w-9 h-10 mx-auto rounded-xl transition cursor-pointer relative ';
+                if (isToday) {
+                    classes += 'bg-[#2563eb] text-white font-bold shadow-md ';
+                } else if (hasEvent) {
+                    classes += 'bg-blue-50 text-blue-700 font-bold border border-blue-200 hover:bg-blue-100 ';
+                } else {
+                    classes += `${isSunday ? 'text-red-500' : 'text-gray-700'} hover:bg-gray-100 `;
+                }
+
+                const dot = hasEvent
+                    ? `<div class="w-1.5 h-1.5 rounded-full ${isToday ? 'bg-white' : 'bg-blue-500'} mt-0.5"></div>`
+                    : `<div class="w-1.5 h-1.5 mt-0.5"></div>`;
+                const tip = hasEvent ? `${count} กิจกรรม - คลิกเพื่อดูรายละเอียด` : 'ไม่มีกิจกรรม';
+
+                html += `
+                    <div class="${classes}" onclick="openMiniCalendarEventModal('${dateKey}')" title="${tip}">
+                        <span class="text-[13px] leading-none">${i}</span>
+                        ${dot}
+                    </div>`;
+            }
+
+            const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+            for (let i = firstDay + daysInMonth; i < totalCells; i++) {
+                html += `<div class="text-gray-300 py-1 flex items-center justify-center h-10"></div>`;
+            }
+            grid.innerHTML = html;
+        }
+
+        // Popup รายละเอียดกิจกรรมของวันที่คลิก
+        window.openMiniCalendarEventModal = function (dateKey) {
+            const list = miniCalendarEvents[dateKey] || [];
+            if (!list.length) return;
+            const body = list.map(ev => `
+                <div style="text-align:left;margin-bottom:12px">
+                    <div style="font-weight:600">${mcEscape(ev.title)}</div>
+                    <div style="font-size:12px;color:#6b7280">${mcEscape(ev.category)}${ev.end_date ? ` · ${mcFormatThai(ev.start_date)} - ${mcFormatThai(ev.end_date)}` : ''}</div>
+                    ${ev.description ? `<div style="font-size:13px;color:#374151;margin-top:4px">${mcEscape(ev.description)}</div>` : ''}
+                </div>`).join('');
+            if (window.Swal) {
+                Swal.fire({ title: mcFormatThai(dateKey), html: body, confirmButtonText: 'ปิด' });
+            } else {
+                alert(list.map(e => e.title).join('\n'));
+            }
+        };
+
+        // ปุ่ม ◀ ▶ : เปลี่ยนเดือน -> ตั้ง dropdown ให้ตรง -> สั่งตัวโหลดเดียวกับปุ่ม "แสดง"
+        function changeMiniCalendarMonth(offset) {
+            miniCalDate = miniCalDate.startOf('month').add(offset, 'month');
+            miniCalendarEvents = {};
+            renderMiniCalendar();                       // วาดเดือนใหม่ว่างๆ ทันที
+
+            const monthSelect = document.getElementById('monthSelect');
+            const yearSelect = document.getElementById('yearSelect');
+            if (!monthSelect || !yearSelect) return;
+
+            const yearBE = String(miniCalDate.year() + 543);   // dropdown ปีเป็น พ.ศ.
+            if (!Array.from(yearSelect.options).some(o => o.value === yearBE)) {
+                const opt = document.createElement('option');
+                opt.value = yearBE;
+                opt.textContent = yearBE;
+                yearSelect.appendChild(opt);
+                Array.from(yearSelect.options)
+                    .sort((a, b) => parseInt(a.value) - parseInt(b.value))
+                    .forEach(o => yearSelect.appendChild(o));
+            }
+            yearSelect.value = yearBE;
+            monthSelect.value = String(miniCalDate.month());
+
+            if (typeof loadEventsByMonth === 'function') loadEventsByMonth();
+        }
+
+        // เริ่มโหลดเดือนไหน (จากปุ่ม "แสดง" / โหลดครั้งแรก) -> ให้ปฏิทินย้ายตามและล้างจุดเก่า
+        window.addEventListener('dashboard:events-loading', (e) => {
+            const { yearBE, month } = e.detail;
+            miniCalDate = dayjs(new Date(yearBE - 543, month, 1));
+            miniCalendarEvents = {};
+            renderMiniCalendar();
+        });
+
+        // ข้อมูลมาแล้ว -> วาดจากข้อมูลชุดเดียวกับตาราง
+        window.addEventListener('dashboard:events-loaded', (e) => {
+            const { yearBE, month, events } = e.detail;
+            miniCalDate = dayjs(new Date(yearBE - 543, month, 1));
+            miniCalendarEvents = buildMiniCalendarMap(events, yearBE - 543, month);
+            renderMiniCalendar();
+        });
+
+        document.addEventListener('DOMContentLoaded', renderMiniCalendar);
     </script>
 </body>
 

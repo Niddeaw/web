@@ -9,47 +9,65 @@
 // ระบบ Cache สำหรับ Google Calendar
 // ----------------------------------------------
 const googleCache = {
-    data: null,
-    timestamp: null,
-    expiry: 5 * 60 * 1000, // 5 นาที
+    store: new Map(),          // เก็บแยกตามเดือน (key = calendarId_start_end)
+    expiry: 5 * 60 * 1000,     // 5 นาที
 
-    set(data) {
-        this.data = data;
-        this.timestamp = Date.now();
+    set(key, events) {
+        this.store.set(key, { events, timestamp: Date.now() });
     },
 
-    get() {
-        if (!this.data || !this.timestamp) return null;
-        if (Date.now() - this.timestamp > this.expiry) {
-            this.clear();
+    get(key) {
+        const hit = this.store.get(key);
+        if (!hit) return null;
+        if (Date.now() - hit.timestamp > this.expiry) {
+            this.store.delete(key);
             return null;
         }
-        return this.data;
+        return hit.events;
     },
 
     clear() {
-        this.data = null;
-        this.timestamp = null;
+        this.store.clear();
     }
 };
 
 // ----------------------------------------------
+// ตัวช่วยวันที่ (ใช้เวลาท้องถิ่น ไม่ใช้ toISOString เพราะเลื่อนวันถอยหลังในไทย UTC+7)
+// ----------------------------------------------
+function toLocalYMD(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function addDaysYMD(ymd, days) {
+    const [y, m, d] = ymd.split('-').map(Number);
+    return toLocalYMD(new Date(y, m - 1, d + days));
+}
+
+// ----------------------------------------------
 // ฟังก์ชันดึงกิจกรรมจาก Google Calendar (พร้อม Cache)
 // ----------------------------------------------
+// startDate = วันแรกของเดือน 00:00, endDate = วันสุดท้ายของเดือน (เวลาใดก็ได้)
 async function fetchGoogleCalendarEvents(calendarId, apiKey, startDate, endDate) {
     if (!calendarId || !apiKey) {
         console.warn("⚠️ ขาด Calendar ID หรือ API Key");
         return [];
     }
 
-    const cacheKey = `${calendarId}_${startDate.toISOString()}_${endDate.toISOString()}`;
-    const cached = googleCache.get();
-    if (cached && cached.key === cacheKey) {
+    // timeMax ต้องเป็น "เที่ยงคืนของวันถัดจากวันสุดท้าย" ไม่เช่นนั้นกิจกรรมวันสุดท้ายของเดือนจะหาย
+    const rangeStart = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const rangeEnd = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() + 1);
+
+    const cacheKey = `${calendarId}_${toLocalYMD(rangeStart)}_${toLocalYMD(rangeEnd)}`;
+    const cached = googleCache.get(cacheKey);
+    if (cached) {
         console.log("📦 ใช้ข้อมูล Google Calendar จาก Cache");
-        return cached.events;
+        return cached;
     }
 
-    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?key=${apiKey}&timeMin=${startDate.toISOString()}&timeMax=${endDate.toISOString()}&singleEvents=true&orderBy=startTime`;
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?key=${apiKey}&timeMin=${encodeURIComponent(rangeStart.toISOString())}&timeMax=${encodeURIComponent(rangeEnd.toISOString())}&singleEvents=true&orderBy=startTime&maxResults=250`;
     console.log("🌐 Fetching Google Calendar:", url);
 
     try {
@@ -64,30 +82,21 @@ async function fetchGoogleCalendarEvents(calendarId, apiKey, startDate, endDate)
         const events = data.items.map(item => {
             let start_date = null;
             let end_date = null;
-            let isAllDay = false;
 
             if (item.start?.date) {
                 start_date = item.start.date;
-                isAllDay = true;
             } else if (item.start?.dateTime) {
-                start_date = item.start.dateTime.split('T')[0];
+                start_date = toLocalYMD(new Date(item.start.dateTime));
             }
 
             if (item.end?.date) {
-                end_date = item.end.date;
-                isAllDay = true;
+                // all-day: Google ให้วันสิ้นสุดแบบ "ไม่รวมวันนั้น" ต้องลดลง 1 วัน
+                end_date = addDaysYMD(item.end.date, -1);
             } else if (item.end?.dateTime) {
-                end_date = item.end.dateTime.split('T')[0];
+                end_date = toLocalYMD(new Date(item.end.dateTime));
             }
 
-            if (isAllDay && start_date && end_date) {
-                const start = new Date(start_date);
-                const end = new Date(end_date);
-                const diffDays = (end - start) / (1000 * 60 * 60 * 24);
-                if (diffDays === 1) {
-                    end_date = null;
-                }
-            }
+            if (!end_date || end_date <= start_date) end_date = null;
 
             return {
                 id: `google_${item.id}`,
@@ -98,9 +107,9 @@ async function fetchGoogleCalendarEvents(calendarId, apiKey, startDate, endDate)
                 end_date: end_date,
                 source: 'google'
             };
-        });
+        }).filter(ev => ev.start_date);
 
-        googleCache.set({ key: cacheKey, events });
+        googleCache.set(cacheKey, events);
         return events;
     } catch (err) {
         console.error("❌ Google Calendar fetch error:", err);
@@ -112,11 +121,15 @@ async function fetchGoogleCalendarEvents(calendarId, apiKey, startDate, endDate)
 // ดึงกิจกรรมภายในระบบ (จาก calendar_events)
 // ----------------------------------------------
 async function fetchInternalEvents(deptKeys, startDate, endDate) {
+    const monthStart = toLocalYMD(startDate);
+    const monthEnd = toLocalYMD(endDate);
+
+    // กิจกรรมที่ทับซ้อนกับเดือนนี้: เริ่มก่อนสิ้นเดือน และ (จบหลังต้นเดือน หรือไม่มีวันจบแล้วเริ่มในเดือน)
     let query = db.from('calendar_events')
         .select('*')
         .eq('is_active', true)
-        .gte('start_date', startDate.toISOString().split('T')[0])
-        .lte('start_date', endDate.toISOString().split('T')[0]);
+        .lte('start_date', monthEnd)
+        .or(`end_date.gte.${monthStart},and(end_date.is.null,start_date.gte.${monthStart})`);
 
     if (deptKeys && deptKeys.length) {
         query = query.in('dept_key', deptKeys);
@@ -169,7 +182,7 @@ async function getEventsByMonthYearForAdmin(yearBE, monthIndex, deptFilter = '')
         allEvents.push(...internalEvents);
     }
 
-    allEvents.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+    allEvents.sort((a, b) => String(a.start_date).localeCompare(String(b.start_date)));
     return allEvents;
 }
 
@@ -205,7 +218,7 @@ async function getEventsByMonthYear(yearBE, monthIndex) {
         allEvents.push(...internalEvents);
     }
 
-    allEvents.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+    allEvents.sort((a, b) => String(a.start_date).localeCompare(String(b.start_date)));
     return allEvents;
 }
 
@@ -254,7 +267,7 @@ async function getEventsByDept(deptKey, startDate = null, endDate = null) {
         .eq('is_active', true);
     if (startDate) query = query.gte('start_date', startDate);
     if (endDate) query = query.lte('start_date', endDate);
-    query.order('start_date', { ascending: true });
+    query = query.order('start_date', { ascending: true });
     const { data, error } = await query;
     if (error) throw error;
     return data;

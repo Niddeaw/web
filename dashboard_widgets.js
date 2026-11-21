@@ -52,24 +52,43 @@ const DEPT_NAMES = {
     general:   'บริหารทั่วไป'
 };
 
-/* ---------- โหลดปฏิทิน ---------- */
+/* ---------- แปลง 'YYYY-MM-DD' เป็น Date เวลาท้องถิ่น (กันวันเพี้ยนจาก UTC) ---------- */
+function parseLocalYMD(ymd) {
+    const [y, m, d] = String(ymd).slice(0, 10).split('-').map(Number);
+    return new Date(y, m - 1, d);
+}
+
+/* ---------- โหลดปฏิทิน (ตัวโหลดเดียว ใช้ร่วมกับ Mini Calendar) ----------
+   แจ้ง Mini Calendar ผ่าน CustomEvent:
+     'dashboard:events-loading' {yearBE, month}
+     'dashboard:events-loaded'  {yearBE, month, events}
+*/
+let dashLoadToken = 0;
+
 async function loadEventsByMonth() {
     const yearEl = document.getElementById('yearSelect');
     const monthEl = document.getElementById('monthSelect');
     const tbody = document.getElementById('calendarEventsTableBody');
     if (!yearEl || !monthEl || !tbody) return;
 
-    const year = parseInt(yearEl.value);
+    const year = parseInt(yearEl.value);   // พ.ศ.
     const month = parseInt(monthEl.value);
     if (isNaN(year) || isNaN(month)) return;
+
+    const token = ++dashLoadToken;         // กันผลของเดือนเก่ามาทับเดือนใหม่
+    window.dispatchEvent(new CustomEvent('dashboard:events-loading', { detail: { yearBE: year, month } }));
 
     tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>กำลังโหลด...</td></tr>';
 
     try {
         const events = await getEventsByMonthYear(year, month);
+        if (token !== dashLoadToken) return;
+
         if (document.getElementById('statEvents')) {
             setStat('statEvents', events.length);
         }
+
+        window.dispatchEvent(new CustomEvent('dashboard:events-loaded', { detail: { yearBE: year, month, events } }));
 
         if (!events.length) {
             tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-500">ไม่มีกิจกรรมในเดือนนี้</td></tr>';
@@ -77,11 +96,14 @@ async function loadEventsByMonth() {
         }
 
         tbody.innerHTML = events.map(ev => {
-            const startDate = new Date(ev.start_date);
+            const startText = formatThaiDate(parseLocalYMD(ev.start_date));
+            const dateText = ev.end_date
+                ? `${startText} - ${formatThaiDate(parseLocalYMD(ev.end_date))}`
+                : startText;
             const deptLabel = DEPT_NAMES[ev.dept_key] || ev.dept_key;
             return `
                 <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
-                    <td class="py-3 px-4 whitespace-nowrap">${formatThaiDate(startDate)}</td>
+                    <td class="py-3 px-4 whitespace-nowrap">${dateText}</td>
                     <td class="py-3 px-4"><span class="px-2 py-1 text-xs rounded-full whitespace-nowrap ${getDeptColorClass(ev.dept_key)}">${deptLabel}</span></td>
                     <td class="py-3 px-4 font-medium text-gray-800">${escapeHtml(ev.title)}</td>
                     <td class="py-3 px-4 text-gray-600">${typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(ev.description || '-') : (ev.description || '-')}</td>
@@ -89,6 +111,7 @@ async function loadEventsByMonth() {
             `;
         }).join('');
     } catch (err) {
+        if (token !== dashLoadToken) return;
         console.error(err);
         if (document.getElementById('statEvents')) setStat('statEvents', '-');
         tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-red-500">ไม่สามารถโหลดข้อมูลได้</td></tr>';
